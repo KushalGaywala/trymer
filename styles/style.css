@@ -1,6 +1,5 @@
 body {
-  background: black;
-  /* background-image: url("https://source.unsplash.com/random/1920x1080"); */
+  background-image: url("https://source.unsplash.com/random/1920x1080");
   padding: 0;
   margin: 0;
   box-sizing: border-box;
