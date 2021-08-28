@@ -31,7 +31,7 @@ let timerInterval;
 button.addEventListener("click", function () {
   if (button.value === "Start") {
     button.value = "Stop";
-    timerInterval = setInterval(funInterval);
+    timerInterval = setInterval(funInterval, 1000);
   } else if (button.value === "Stop") {
     button.value = "Start";
     clearInterval(timerInterval);
@@ -77,46 +77,6 @@ function funInterval() {
     context.innerHTML = "Study Timer";
   }
 }
-
-// countdown START
-// let interval;
-// let sTime = studyTime.value * 60;
-// let bTime = breakTime.value * 60;
-// let sess = session.value;
-
-// button.addEventListener("click", function (event) {
-//   if (event.target.value === "Start") {
-//     event.target.value = "Stop";
-//     interval = setInterval(funInterval, 1000);
-//   } else {
-//     clearInterval(interval);
-//     event.target.value = "Start";
-//   }
-// });
-
-// function funInterval() {
-//   newTime = pad(bTime) + ":" + pad(sTime);
-//   if (sNew < sTime && sess > 0) {
-//     console.log("study: " + sTime);
-//     context.innerHTML = "Study Timer";
-//     sTimer.innerHTML = pad(sTime);
-//     --sTime;
-//   } else if (bNew < bTime && sess > 1) {
-//     console.log("break: " + bTime);
-//     context.innerHTML = "Break Timer";
-//     sTimer.innerHTML = pad(bTime);
-//     --bTime;
-//   } else if (sess > 1) {
-//     sTime = studyTime.value * 60;
-//     bTime = breakTime.value * 60;
-//     context.innerHTML += " " + sess;
-//     console.log("session: " + sess);
-//     --sess;
-//   } else {
-//     sTimer.innerHTML = newTime(0, 0);
-//   }
-// }
-// countdown END
 
 function currSession(cur, total) {
   return cur + "/" + total;
