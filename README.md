@@ -1,4 +1,5 @@
 # timer
+
 Study Timer for tryhards
 
 - Enter the time(in minutes) for study session

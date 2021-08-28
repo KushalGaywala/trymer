@@ -24,14 +24,14 @@ let watchInterval = setInterval(function () {
 
 let min = 0;
 let sec = 0;
-let sess = session.value;
-let swtch = 0;
+let sess = 1;
+let swtch = 1;
 
 let timerInterval;
 button.addEventListener("click", function () {
   if (button.value === "Start") {
     button.value = "Stop";
-    timerInterval = setInterval(funInterval, 1000);
+    timerInterval = setInterval(funInterval);
   } else if (button.value === "Stop") {
     button.value = "Start";
     clearInterval(timerInterval);
@@ -39,28 +39,43 @@ button.addEventListener("click", function () {
 });
 
 function funInterval() {
-  if (sec < 59 && min < studyTime.value && min < breakTime.value) {
-    ++sec;
-  } else if (min < 59 && min < studyTime.value && min < breakTime.value) {
-    sec = 0;
-    ++min;
+  if (sess <= session.value) {
+    if (swtch) {
+      context.innerHTML = "Study Timer" + " ";
+      context.innerHTML += currSession(sess, session.value);
+      if (sec < 59 && min < studyTime.value) {
+        ++sec;
+      } else if (min < studyTime.value) {
+        sec = 0;
+        ++min;
+      } else {
+        sec = 0;
+        min = 0;
+        swtch = 0;
+        if (sess == session.value) {
+          ++sess;
+        }
+      }
+    } else if (!swtch) {
+      context.innerHTML = "Break Timer" + " ";
+      context.innerHTML += currSession(sess, session.value);
+      if (sec < 59 && min < breakTime.value) {
+        ++sec;
+      } else if (min < breakTime.value) {
+        sec = 0;
+        ++min;
+      } else {
+        sec = 0;
+        min = 0;
+        swtch = 1;
+        ++sess;
+      }
+    }
+    sTimer.innerHTML = newTime(pad(min), pad(sec));
+    console.log(newTime(min, sec));
   } else {
-    if (context.innerHTML === "Study Timer") {
-      context.innerHTML = "Break Timer";
-      swtch = 1;
-    } else if (context.innerHTML === "Break Timer") {
-      context.innerHTML = "Study Timer";
-      swtch = 0;
-    }
-    min = 0;
-    sec = 0;
-    --sess;
-    if (sess > 1) {
-      clearInterval(timerInterval);
-    }
+    context.innerHTML = "Study Timer";
   }
-  sTimer.innerHTML = newTime(pad(min), pad(sec));
-  console.log(newTime(min, sec));
 }
 
 // countdown START
@@ -103,6 +118,10 @@ function funInterval() {
 // }
 // countdown END
 
+function currSession(cur, total) {
+  return cur + "/" + total;
+}
+
 function newTime(minute, second) {
   return minute + ":" + second;
 }
@@ -125,8 +144,10 @@ function getDay(day) {
       return "Friday";
     case 6:
       return "Saturday";
-    case 7:
+    case 0:
       return "Sunday";
+    default:
+      return "No Day";
   }
 }
 
