@@ -25,17 +25,20 @@
       </div>
       <div class="control">
         <h3 class="label">Sessions:</h3>
-        <input type="number" id="break-time" placeholder="No. of Sessions" />
+        <input type="number" id="sessions" placeholder="No. of Sessions" />
       </div>
       <div class="control">
-        <input type="button" value="Stop" />
+        <input type="button" value="Start" id="button" />
       </div>
     </div>
     <main class="container">
-      <h3 class="greeting" id="greeting">Study Timer</h3>
-      <h1 class="timer" id="timer">11:44:03</h1>
-      <h3 class="date" id="date">Saturday, August 28</h3>
+      <h3 class="context" id="context">Study Timer</h3>
+      <h1 class="timer" id="timer">00:00</h1>
     </main>
+    <footer class="footer">
+      <h1 class="timer" id="time"></h1>
+      <h3 class="date" id="date"></h3>
+    </footer>
   </body>
   <script src="./scripts/script.js"></script>
 </html>
