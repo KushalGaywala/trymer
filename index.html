@@ -13,23 +13,38 @@
     <link rel="stylesheet" href="./styles/style.css" />
     <title>Timer</title>
   </head>
-  <body>
+  <body class="body">
     <div class="fields">
       <div class="control">
-        <h3 class="label">Study Time:</h3>
-        <input type="number" id="study-time" placeholder="(in minutes)" />
+        <h3 class="label">Study Time</h3>
+        <input
+          type="number"
+          id="study-time"
+          class="number"
+          placeholder="(in minutes)"
+        />
       </div>
       <div class="control">
-        <h3 class="label">Break Time:</h3>
-        <input type="number" id="break-time" placeholder="(in minutes)" />
+        <h3 class="label">Break Time</h3>
+        <input
+          type="number"
+          id="break-time"
+          class="input number"
+          placeholder="(in minutes)"
+        />
       </div>
       <div class="control">
-        <h3 class="label">Sessions:</h3>
-        <input type="number" id="sessions" placeholder="No. of Sessions" />
+        <h3 class="label">Sessions</h3>
+        <input
+          type="number"
+          id="sessions"
+          class="input number"
+          placeholder="No. of Sessions"
+        />
       </div>
       <div class="control">
-        <input type="button" value="Start" id="start" />
-        <input type="button" value="Reset" id="reset" />
+        <input type="button" value="Start" id="start" class="input button" />
+        <input type="button" value="Reset" id="reset" class="input button" />
       </div>
     </div>
     <main class="container">
