@@ -17,18 +17,6 @@ let audioSwitch = 0;
 let alertAudioInterval;
 let timerInterval;
 
-function callTimerInterval() {
-  timerInterval = setInterval(function () {
-    funTimerInterval();
-  }, 1000);
-}
-
-function callAlertAudioInterval() {
-  alertAudioInterval = setInterval(function () {
-    funAudioInterval();
-  }, 1000);
-}
-
 function clearAlertAudioInterval() {
   clearInterval(alertAudioInterval);
 }
@@ -103,6 +91,18 @@ function getMonth(month) {
     default:
       return "No Month";
   }
+}
+
+function callTimerInterval() {
+  timerInterval = setInterval(function () {
+    funTimerInterval();
+  }, 1000);
+}
+
+function callAlertAudioInterval() {
+  alertAudioInterval = setInterval(function () {
+    funAudioInterval();
+  }, 1000);
 }
 
 function playAlertAudio() {
