@@ -26,6 +26,7 @@ let min = 0;
 let sec = 0;
 let sess = 1;
 let swtch = 1;
+let cont = "";
 
 let timerInterval;
 button.addEventListener("click", function () {
@@ -41,8 +42,7 @@ button.addEventListener("click", function () {
 function funInterval() {
   if (sess <= session.value) {
     if (swtch) {
-      context.innerHTML = "Study Timer" + " ";
-      context.innerHTML += currSession(sess, session.value);
+      cont = currContext("Study Timer", currSession(sess, session.value));
       if (sec < 59 && min < studyTime.value) {
         ++sec;
       } else if (min < studyTime.value) {
@@ -52,13 +52,11 @@ function funInterval() {
         sec = 0;
         min = 0;
         swtch = 0;
-        if (sess == session.value) {
-          ++sess;
-        }
+        ++sess;
+        cont = currContext("Break Timer", currSession(sess, session.value));
       }
     } else if (!swtch) {
-      context.innerHTML = "Break Timer" + " ";
-      context.innerHTML += currSession(sess, session.value);
+      cont = currContext("Break Timer", currSession(sess, session.value));
       if (sec < 59 && min < breakTime.value) {
         ++sec;
       } else if (min < breakTime.value) {
@@ -68,14 +66,19 @@ function funInterval() {
         sec = 0;
         min = 0;
         swtch = 1;
-        ++sess;
+        cont = currContext("Study Timer", currSession(sess, session.value));
       }
     }
+    context.innerHTML = cont;
     sTimer.innerHTML = newTime(pad(min), pad(sec));
     console.log(newTime(min, sec));
   } else {
     context.innerHTML = "Study Timer";
   }
+}
+
+function currContext(context, sess) {
+  return context + " " + sess;
 }
 
 function currSession(cur, total) {
