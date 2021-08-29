@@ -63,12 +63,13 @@ body {
 }
 
 .control input[type="button"] {
+  background: rgba(255, 255, 255, 0.7);
   border-radius: 4px;
-  height: 30px;
+  height: 35px;
   margin: 0 auto 0 auto;
-  flex: 0.25;
+  flex: 0.5;
 }
 
 .control input[type="button"]:hover {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.5);
 }

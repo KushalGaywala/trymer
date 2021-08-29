@@ -1,14 +1,24 @@
-const timer = document.getElementById("time");
-const todate = document.getElementById("date");
-const button = document.getElementById("button");
+let alertAudio = new Audio("./audio/mixkit-industry-alarm-tone-2979.wav");
+
+const startButton = document.getElementById("start");
 const studyTime = document.getElementById("study-time");
 const breakTime = document.getElementById("break-time");
-const session = document.getElementById("sessions");
-const context = document.getElementById("context");
-const sTimer = document.getElementById("timer");
+const totalsession = document.getElementById("sessions");
+const timercontext = document.getElementById("context");
+const studyTimer = document.getElementById("timer");
+
+let minuteCount = 0;
+let secondCount = 0;
+let sessionCount = 1;
+let timerSwitch = 1;
+let timerContext = "";
+let audioSwitch = 0;
+
+let alertAudioInterval;
+let timerInterval;
 
 // watch START
-let watchInterval = setInterval(function () {
+let watchInterval = setInterval(function (event) {
   let today = new Date();
   let month = today.getMonth() + 1;
   let day = today.getDay();
@@ -17,68 +27,144 @@ let watchInterval = setInterval(function () {
   let minute = today.getMinutes();
   let seconds = today.getSeconds();
 
-  timer.innerHTML = pad(hour) + ":" + pad(minute) + ":" + pad(seconds);
-  todate.innerHTML = getDay(day) + ", " + getMonth(month) + " " + pad(date);
+  document.getElementById("time").innerHTML =
+    pad(hour) + ":" + pad(minute) + ":" + pad(seconds);
+  document.getElementById("date").innerHTML =
+    getDay(day) + ", " + getMonth(month) + " " + pad(date);
 });
 // watch END
 
-let min = 0;
-let sec = 0;
-let sess = 1;
-let swtch = 1;
-let cont = "";
-
-let timerInterval;
-button.addEventListener("click", function () {
-  if (button.value === "Start") {
-    button.value = "Stop";
-    timerInterval = setInterval(funInterval, 1000);
-  } else if (button.value === "Stop") {
-    button.value = "Start";
-    clearInterval(timerInterval);
+startButton.addEventListener("click", function (event) {
+  if (event.target.value === "Start") {
+    event.target.value = "Stop";
+    if (audioSwitch) {
+      alertAudio.play();
+      callAlertAudioInterval();
+    } else {
+      callTimerInterval(event);
+    }
+  } else if (event.target.value === "Stop") {
+    event.target.value = "Start";
+    alertAudio.pause();
+    clearTimerInterval();
+    clearAlertAudioInterval();
   }
 });
 
-function funInterval() {
-  if (sess <= session.value) {
-    if (swtch) {
-      cont = currContext("Study Timer", currSession(sess, session.value));
-      if (sec < 59 && min < studyTime.value) {
-        ++sec;
-      } else if (min < studyTime.value) {
-        sec = 0;
-        ++min;
+document.getElementById("reset").addEventListener("click", function (event) {
+  if (event.target.value === "Reset") {
+    resetFullTimer();
+  }
+});
+
+function resetFullTimer() {
+  minuteCount = 0;
+  secondCount = 0;
+  sessionCount = 1;
+  timerSwitch = 1;
+  audioSwitch = 0;
+  studyTime.value = null;
+  breakTime.value = null;
+  totalsession.value = null;
+  timerContext.innerHTML = "Study Timer";
+  studyTimer.innerHTML = newTime(pad(min), pad(sec));
+  startButton.value = "Start";
+  alertAudio.pause();
+  clearAlertAudioInterval();
+  clearTimerInterval();
+}
+
+function funTimerInterval() {
+  if (sessionCount <= totalsession.value) {
+    if (timerSwitch) {
+      timerContext = currContext(
+        "Study Timer",
+        currSession(sessionCount, totalsession.value)
+      );
+      if (secondCount < 59 && minuteCount < studyTime.value) {
+        ++secondCount;
+      } else if (minuteCount < studyTime.value) {
+        secondCount = 0;
+        ++minuteCount;
       } else {
-        sec = 0;
-        min = 0;
-        swtch = 0;
-        ++sess;
-        cont = currContext("Break Timer", currSession(sess, session.value));
+        secondCount = 0;
+        minuteCount = 0;
+        timerSwitch = 0;
+        ++sessionCount;
+        clearTimerInterval();
+        alertAudio.play();
+        alertAudio.loop = true;
+        callAlertAudioInterval();
+        timerContext = currContext(
+          "Break Timer",
+          currSession(sessionCount - 1, totalsession.value)
+        );
       }
-    } else if (!swtch) {
-      cont = currContext("Break Timer", currSession(sess, session.value));
-      if (sec < 59 && min < breakTime.value) {
-        ++sec;
-      } else if (min < breakTime.value) {
-        sec = 0;
-        ++min;
+    } else if (!timerSwitch) {
+      timerContext = currContext(
+        "Break Timer",
+        currSession(sessionCount - 1, totalsession.value)
+      );
+      if (secondCount < 59 && minuteCount < breakTime.value) {
+        ++secondCount;
+      } else if (minuteCount < breakTime.value) {
+        secondCount = 0;
+        ++minuteCount;
       } else {
-        sec = 0;
-        min = 0;
-        swtch = 1;
-        cont = currContext("Study Timer", currSession(sess, session.value));
+        secondCount = 0;
+        minuteCount = 0;
+        timerSwitch = 1;
+        timerContext = currContext(
+          "Study Timer",
+          currSession(sessionCount, totalsession.value)
+        );
       }
     }
-    context.innerHTML = cont;
-    sTimer.innerHTML = newTime(pad(min), pad(sec));
-    console.log(newTime(min, sec));
+    timercontext.innerHTML = timerContext;
+    studyTimer.innerHTML = newTime(pad(minuteCount), pad(secondCount));
+    console.log(newTime(minuteCount, secondCount));
   } else {
-    context.innerHTML = "Study Timer";
+    resetFullTimer();
   }
 }
 
-function currContext(context, sess) {
-  return context + " " + sess;
+function funAudioInterval() {
+  if (secondCount < 7) {
+    audioSwitch = 1;
+    console.log("musicsec: " + secondCount);
+    ++secondCount;
+  } else {
+    console.log("musicsecpause: " + secondCount);
+    audioSwitch = 0;
+    alertAudio.pause();
+    clearAlertAudioInterval();
+    secondCount = 0;
+    callTimerInterval();
+  }
+}
+
+function callTimerInterval() {
+  timerInterval = setInterval(function () {
+    funTimerInterval();
+  }, 1000);
+}
+
+function callAlertAudioInterval() {
+  alertAudioInterval = setInterval(function () {
+    funAudioInterval();
+  }, 1000);
+}
+
+function clearAlertAudioInterval() {
+  clearInterval(alertAudioInterval);
+}
+
+function clearTimerInterval() {
+  clearInterval(timerInterval);
+}
+
+function currContext(timercontext, sessionCount) {
+  return timercontext + " " + sessionCount;
 }
 
 function currSession(cur, total) {
