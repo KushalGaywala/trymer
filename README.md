@@ -34,7 +34,7 @@ Ensure you have the following installed on your system:
 To install pnpm if you don't already have it:
 
 ```bash
-npm install -g pnpm # PS: Also isit pnpm site to install directly (linked previously)
+npm install -g pnpm # PS: Also visit pnpm site to install directly (linked previously)
 ```
 
 ### Installation
