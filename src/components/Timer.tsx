@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import styles from './Timer.module.css';
 
 export function Timer() {
   const [studyTime, setStudyTime] = useState<number>(0);
@@ -146,156 +147,61 @@ export function Timer() {
     return timerSwitch ? `Study Timer ${sessionInfo}` : `Break Timer ${sessionCount - 1}/${totalSessions}`;
   };
 
-  const styles = {
-    body: {
-      backgroundImage: 'url(https://source.unsplash.com/random/1920x1080)',
-      backgroundRepeat: 'no-repeat' as const,
-      backgroundPosition: 'center',
-      backgroundSize: 'cover',
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column' as const,
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: 'white',
-    },
-    fields: {
-      display: 'flex',
-      flexDirection: 'column' as const,
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '25vh',
-    },
-    control: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      width: '300px',
-      marginBottom: '5px',
-    },
-    label: {
-      color: 'rgba(255, 255, 255, 1)',
-      flex: 1,
-    },
-    input: {
-      height: '30px',
-      padding: '5px',
-      borderRadius: '4px',
-      fontSize: '14px',
-      background: 'rgba(255, 255, 255, 0.7)',
-      border: '0',
-      flex: 1,
-    },
-    button: {
-      background: 'rgba(255, 255, 255, 0.7)',
-      borderRadius: '4px',
-      height: '35px',
-      flex: 0.5,
-      border: '0',
-      cursor: 'pointer',
-    },
-    buttonActive: {
-      background: 'rgba(0, 0, 0, 0.7)',
-      color: 'rgba(255, 255, 255, 1)',
-      borderRadius: '4px',
-      height: '35px',
-      flex: 0.5,
-      border: '0',
-      cursor: 'pointer',
-    },
-    container: {
-      display: 'flex',
-      flexDirection: 'column' as const,
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '2em',
-      height: '50vh',
-    },
-    footer: {
-      display: 'flex',
-      flexDirection: 'column' as const,
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '2em',
-      height: '25vh',
-    },
-  };
-
   return (
-    <div style={styles.body}>
-      <div style={styles.fields}>
-        <div style={styles.control}>
-          <h3 style={styles.label}>Study Time</h3>
+    <div className={styles.body}>
+      <div className={styles.fields}>
+        <div className={styles.control}>
+          <h3 className={styles.label}>Study Time</h3>
           <input
             type="number"
             value={studyTime || ''}
             onChange={(e) => setStudyTime(Number(e.target.value))}
             placeholder="(in minutes)"
-            style={styles.input}
+            className={styles.input}
           />
         </div>
-        <div style={styles.control}>
-          <h3 style={styles.label}>Break Time</h3>
+        <div className={styles.control}>
+          <h3 className={styles.label}>Break Time</h3>
           <input
             type="number"
             value={breakTime || ''}
             onChange={(e) => setBreakTime(Number(e.target.value))}
             placeholder="(in minutes)"
-            style={styles.input}
+            className={styles.input}
           />
         </div>
-        <div style={styles.control}>
-          <h3 style={styles.label}>Sessions</h3>
+        <div className={styles.control}>
+          <h3 className={styles.label}>Sessions</h3>
           <input
             type="number"
             value={totalSessions || ''}
             onChange={(e) => setTotalSessions(Number(e.target.value))}
             placeholder="No. of Sessions"
-            style={styles.input}
+            className={styles.input}
           />
         </div>
-        <div style={styles.control}>
+        <div className={styles.control}>
           <button
             onClick={handleStartStop}
-            style={isRunning ? styles.buttonActive : styles.button}
-            onMouseOver={(e) => {
-              if (!isRunning) {
-                (e.target as HTMLButtonElement).style.background = 'rgba(255, 255, 255, 0.5)';
-              } else {
-                (e.target as HTMLButtonElement).style.background = 'rgba(0, 0, 0, 0.5)';
-              }
-            }}
-            onMouseOut={(e) => {
-              if (!isRunning) {
-                (e.target as HTMLButtonElement).style.background = 'rgba(255, 255, 255, 0.7)';
-              } else {
-                (e.target as HTMLButtonElement).style.background = 'rgba(0, 0, 0, 0.7)';
-              }
-            }}
+            className={isRunning ? styles.buttonActive : styles.button}
           >
             {isRunning ? 'Stop' : 'Start'}
           </button>
           <button
             onClick={handleReset}
-            style={{...styles.button, marginLeft: '10px'}}
-            onMouseOver={(e) => {
-              (e.target as HTMLButtonElement).style.background = 'rgba(255, 255, 255, 0.5)';
-            }}
-            onMouseOut={(e) => {
-              (e.target as HTMLButtonElement).style.background = 'rgba(255, 255, 255, 0.7)';
-            }}
+            className={`${styles.button} ${styles.resetButton}`}
           >
             Reset
           </button>
         </div>
       </div>
       
-      <main style={styles.container}>
-        <h3 style={{color: 'white'}}>{getContext()}</h3>
-        <h1 style={{color: 'white', fontSize: '2em'}}>{pad(minuteCount)}:{pad(secondCount)}</h1>
+      <main className={styles.container}>
+        <h3 className={styles.contextText}>{getContext()}</h3>
+        <h1 className={styles.timerText}>{pad(minuteCount)}:{pad(secondCount)}</h1>
       </main>
       
-      <footer style={styles.footer}>
+      <footer className={styles.footer}>
         <Clock />
       </footer>
     </div>
@@ -338,8 +244,8 @@ function Clock() {
 
   return (
     <>
-      <h1 style={{color: 'white'}}>{time}</h1>
-      <h3 style={{color: 'white', fontSize: '0.5em'}}>{date}</h3>
+      <h1 className={styles.clockText}>{time}</h1>
+      <h3 className={styles.dateText}>{date}</h3>
     </>
   );
 }
