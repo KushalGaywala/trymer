@@ -1,10 +1,7 @@
-function App() {
+import { Timer } from './components/Timer'
 
-  return (
-    <>
-      <h1>H! World!</h1>
-    </>
-  )
+function App() {
+  return <Timer />
 }
 
 export default App
