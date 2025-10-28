@@ -3,6 +3,8 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 
+const AUDIO_ALERT_DURATION = 8; // seconds
+
 export function Timer() {
   const [studyTime, setStudyTime] = useState<number>(0);
   const [breakTime, setBreakTime] = useState<number>(0);
@@ -69,7 +71,7 @@ export function Timer() {
     
     audioSecondRef.current = 0;
     audioIntervalRef.current = setInterval(() => {
-      if (audioSecondRef.current <= 8) {
+      if (audioSecondRef.current <= AUDIO_ALERT_DURATION) {
         audioSecondRef.current++;
       } else {
         if (alertAudioRef.current) {
