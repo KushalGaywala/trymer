@@ -288,3 +288,45 @@ export function Timer() {
     </div>
   );
 }
+
+function Clock() {
+  const [time, setTime] = useState<string>('');
+  const [date, setDate] = useState<string>('');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const today = new Date();
+      const hours = today.getHours();
+      const minutes = today.getMinutes();
+      const seconds = today.getSeconds();
+      const day = today.getDay();
+      const month = today.getMonth() + 1;
+      const dateNum = today.getDate();
+
+      const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+      
+      setTime(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`);
+      setDate(`${getDay(day)}, ${getMonth(month)} ${pad(dateNum)}`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const getDay = (day: number): string => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[day] || 'No Day';
+  };
+
+  const getMonth = (month: number): string => {
+    const months = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+    return months[month] || 'No Month';
+  };
+
+  return (
+    <>
+      <h1 className={styles.clockText}>{time}</h1>
+      <h3 className={styles.dateText}>{date}</h3>
+    </>
+  );
+}
