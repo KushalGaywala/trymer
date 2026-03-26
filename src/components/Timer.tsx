@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useTheme } from 'next-themes';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Moon, Sun } from 'lucide-react';
 
 const AUDIO_ALERT_DURATION = 8; // seconds
 
 export function Timer() {
-  const { theme, setTheme } = useTheme();
   const [studyTime, setStudyTime] = useState<number>(0);
   const [breakTime, setBreakTime] = useState<number>(0);
   const [totalSessions, setTotalSessions] = useState<number>(0);
@@ -26,6 +23,8 @@ export function Timer() {
   const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const clockIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioSecondRef = useRef<number>(0);
+  const tickRef = useRef<() => void>(() => {});
+  const isRunningRef = useRef<boolean>(false);
 
   const pad = (digit: number): string => {
     return digit < 10 ? '0' + digit : digit.toString();
@@ -61,6 +60,14 @@ export function Timer() {
     return `${context} ${cur}/${total}`;
   };
 
+  // Keep ref current so interval callbacks always call the latest tick
+  useEffect(() => {
+    tickRef.current = tick;
+  }, [tick]);
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+
   const playAlertAudio = useCallback(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -85,6 +92,12 @@ export function Timer() {
           audioIntervalRef.current = null;
         }
         audioSecondRef.current = 0;
+        // Restart the timer interval after audio finishes (mirrors original JS callTimerInterval())
+        if (isRunningRef.current) {
+          timerIntervalRef.current = setInterval(() => {
+            tickRef.current();
+          }, 1000);
+        }
       }
     }, 1000);
   }, []);
@@ -170,9 +183,12 @@ export function Timer() {
   }, [updateClock]);
 
   useEffect(() => {
-    if (isRunning && !audioIntervalRef.current) {
+    if (isRunning) {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
       timerIntervalRef.current = setInterval(() => {
-        tick();
+        tickRef.current();
       }, 1000);
     }
 
@@ -182,7 +198,7 @@ export function Timer() {
         timerIntervalRef.current = null;
       }
     };
-  }, [isRunning, tick]);
+  }, [isRunning]);
 
   const handleStart = () => {
     if (!isRunning) {
@@ -227,69 +243,56 @@ export function Timer() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 font-['Rubik',sans-serif]">
-      {/* Theme toggle */}
-      <div className="absolute top-4 right-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => {
-            // Determine effective theme: if 'system', check actual resolved theme
-            const effectiveTheme = theme === 'system'
-              ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-              : theme;
-            setTheme(effectiveTheme === 'dark' ? 'light' : 'dark');
-          }}
-          className="rounded-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
-          aria-label="Toggle theme"
-        >
-          <Sun className="h-5 w-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
-        </Button>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 text-white transition-colors duration-300 font-['Rubik',sans-serif] relative overflow-hidden">
+      {/* Decorative background glows */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-purple-500 rounded-full opacity-10 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500 rounded-full opacity-10 blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-violet-600 rounded-full opacity-5 blur-3xl" />
       </div>
 
       {/* Input fields */}
-      <div className="flex flex-col items-center justify-center h-[25vh] space-y-2">
+      <div className="flex flex-col items-center justify-center h-[25vh] space-y-2 relative z-10">
         <div className="flex justify-between items-center w-[300px]">
-          <Label className="flex-1 text-gray-900 dark:text-white">Study Time</Label>
+          <Label className="flex-1 text-white/90">Study Time</Label>
           <Input
             type="number"
             value={studyTime || ''}
             onChange={(e) => setStudyTime(Number(e.target.value))}
             placeholder="(in minutes)"
-            className="h-[30px] text-sm flex-1 ml-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500"
+            className="h-[30px] text-sm flex-1 ml-2 bg-white/10 border-white/20 text-white placeholder:text-white/40 backdrop-blur-sm"
           />
         </div>
         <div className="flex justify-between items-center w-[300px]">
-          <Label className="flex-1 text-gray-900 dark:text-white">Break Time</Label>
+          <Label className="flex-1 text-white/90">Break Time</Label>
           <Input
             type="number"
             value={breakTime || ''}
             onChange={(e) => setBreakTime(Number(e.target.value))}
             placeholder="(in minutes)"
-            className="h-[30px] text-sm flex-1 ml-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500"
+            className="h-[30px] text-sm flex-1 ml-2 bg-white/10 border-white/20 text-white placeholder:text-white/40 backdrop-blur-sm"
           />
         </div>
         <div className="flex justify-between items-center w-[300px] mb-2">
-          <Label className="flex-1 text-gray-900 dark:text-white">Sessions</Label>
+          <Label className="flex-1 text-white/90">Sessions</Label>
           <Input
             type="number"
             value={totalSessions || ''}
             onChange={(e) => setTotalSessions(Number(e.target.value))}
             placeholder="No. of Sessions"
-            className="h-[30px] text-sm flex-1 ml-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500"
+            className="h-[30px] text-sm flex-1 ml-2 bg-white/10 border-white/20 text-white placeholder:text-white/40 backdrop-blur-sm"
           />
         </div>
         <div className="flex justify-center items-center w-[300px] space-x-2">
           <Button
             onClick={handleStart}
-            className={`h-[35px] flex-[0.5] ${isRunning ? 'bg-gray-800 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200' : 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600'}`}
+            className={`h-[35px] flex-[0.5] ${isRunning ? 'bg-white text-indigo-950 hover:bg-white/90 border-0' : 'bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-sm'}`}
           >
             {isRunning ? 'Stop' : 'Start'}
           </Button>
           <Button
             onClick={resetTimer}
-            className="h-[35px] flex-[0.5] bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"
+            className="h-[35px] flex-[0.5] bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-sm"
           >
             Reset
           </Button>
@@ -297,15 +300,15 @@ export function Timer() {
       </div>
 
       {/* Timer display */}
-      <main className="flex flex-col items-center justify-center text-[2em] h-[50vh]">
-        <h3 className="mb-4 text-gray-700 dark:text-gray-300">{timerContext}</h3>
-        <h1 className="text-[2em] font-bold text-gray-900 dark:text-white">{pad(minuteCount)}:{pad(secondCount)}</h1>
+      <main className="flex flex-col items-center justify-center text-[2em] h-[50vh] relative z-10">
+        <h3 className="mb-4 text-white/80 text-[0.5em] tracking-widest uppercase">{timerContext}</h3>
+        <h1 className="text-[2em] font-bold text-white drop-shadow-lg">{pad(minuteCount)}:{pad(secondCount)}</h1>
       </main>
 
       {/* Clock/Date display */}
-      <footer className="flex flex-col items-center justify-center text-[2em] h-[25vh]">
-        <h1 className="text-[2em] font-bold text-gray-900 dark:text-white">{currentTime}</h1>
-        <h3 className="text-gray-600 dark:text-gray-400">{currentDate}</h3>
+      <footer className="flex flex-col items-center justify-center text-[2em] h-[25vh] relative z-10">
+        <h1 className="text-[2em] font-bold text-white drop-shadow-lg">{currentTime}</h1>
+        <h3 className="text-white/80 text-[0.5em] mt-2">{currentDate}</h3>
       </footer>
     </div>
   );
