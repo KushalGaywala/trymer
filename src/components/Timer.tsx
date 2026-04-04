@@ -1,14 +1,22 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useTheme } from 'next-themes';
+import { Settings } from 'lucide-react';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Moon, Sun } from 'lucide-react';
+import { useAppSettings } from '@/hooks/use-app-settings';
+import { resolveBackgroundImageUrl } from '@/lib/app-settings';
+import { AppSettingsSheet } from '@/components/settings/AppSettingsSheet';
+import { StudyInputsBlock } from '@/components/timer/StudyInputsBlock';
+import { TimerFaceBlock } from '@/components/timer/TimerFaceBlock';
+import { HeroBlock } from '@/components/timer/HeroBlock';
+import { ThemeToggleBlock } from '@/components/timer/ThemeToggleBlock';
+import { TimerGrid } from '@/components/timer/TimerGrid';
+import { cn } from '@/lib/utils';
 
-const AUDIO_ALERT_DURATION = 8; // seconds
+const AUDIO_ALERT_DURATION = 8;
 
 export function Timer() {
-  const { theme, setTheme } = useTheme();
+  const { settings, setSettings, updatePlacement, resetToDefaults, hydrated } = useAppSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const [studyTime, setStudyTime] = useState<number>(0);
   const [breakTime, setBreakTime] = useState<number>(0);
   const [totalSessions, setTotalSessions] = useState<number>(0);
@@ -18,60 +26,39 @@ export function Timer() {
   const [timerSwitch, setTimerSwitch] = useState<boolean>(true);
   const [timerContext, setTimerContext] = useState<string>('Study Timer');
   const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [currentTime, setCurrentTime] = useState<string>('');
-  const [currentDate, setCurrentDate] = useState<string>('');
+  const [now, setNow] = useState(() => new Date());
+  const [bgBroken, setBgBroken] = useState(false);
 
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const clockIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioSecondRef = useRef<number>(0);
+  const tickRef = useRef<() => void>(() => {});
 
   const pad = (digit: number): string => {
     return digit < 10 ? '0' + digit : digit.toString();
   };
 
-  const getDay = (day: number): string => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[day] || 'No Day';
-  };
-
-  const getMonth = (month: number): string => {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return months[month] || 'No Month';
-  };
-
-  const updateClock = useCallback(() => {
-    const today = new Date();
-    const month = today.getMonth();
-    const day = today.getDay();
-    const date = today.getDate();
-    const hour = today.getHours();
-    const minute = today.getMinutes();
-    const seconds = today.getSeconds();
-
-    setCurrentTime(`${pad(hour)}:${pad(minute)}:${pad(seconds)}`);
-    setCurrentDate(`${getDay(day)}, ${getMonth(month)} ${pad(date)}`);
-  }, []);
-
   const currContext = (context: string, cur: number, total: number): string => {
     return `${context} ${cur}/${total}`;
   };
+
+  const updateClock = useCallback(() => {
+    setNow(new Date());
+  }, []);
 
   const playAlertAudio = useCallback(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
-    
+
     if (alertAudioRef.current) {
       alertAudioRef.current.play();
       alertAudioRef.current.loop = true;
     }
-    
+
     audioSecondRef.current = 0;
     audioIntervalRef.current = setInterval(() => {
       if (audioSecondRef.current <= AUDIO_ALERT_DURATION) {
@@ -115,7 +102,6 @@ export function Timer() {
     }
 
     if (timerSwitch) {
-      // Study timer
       if (secondCount < 59 && minuteCount < studyTime) {
         setTimerContext(currContext('Study Timer', sessionCount, totalSessions));
         setSecondCount(secondCount + 1);
@@ -133,7 +119,6 @@ export function Timer() {
         setSecondCount(secondCount + 1);
       }
     } else {
-      // Break timer
       if (secondCount < 59 && minuteCount < breakTime) {
         setTimerContext(currContext('Break Timer', sessionCount - 1, totalSessions));
         setSecondCount(secondCount + 1);
@@ -152,10 +137,11 @@ export function Timer() {
     }
   }, [sessionCount, totalSessions, timerSwitch, secondCount, minuteCount, studyTime, breakTime, playAlertAudio]);
 
+  tickRef.current = tick;
+
   useEffect(() => {
     alertAudioRef.current = new Audio('/mixkit-industry-alarm-tone-2979.wav');
-    
-    // Start clock
+
     updateClock();
     clockIntervalRef.current = setInterval(updateClock, 1000);
 
@@ -170,11 +156,11 @@ export function Timer() {
   }, [updateClock]);
 
   useEffect(() => {
-    if (isRunning && !audioIntervalRef.current) {
-      timerIntervalRef.current = setInterval(() => {
-        tick();
-      }, 1000);
-    }
+    if (!isRunning) return;
+
+    timerIntervalRef.current = setInterval(() => {
+      tickRef.current();
+    }, 1000);
 
     return () => {
       if (timerIntervalRef.current) {
@@ -182,7 +168,7 @@ export function Timer() {
         timerIntervalRef.current = null;
       }
     };
-  }, [isRunning, tick]);
+  }, [isRunning]);
 
   const handleStart = () => {
     if (!isRunning) {
@@ -226,87 +212,94 @@ export function Timer() {
     }
   };
 
+  const bgUrl = hydrated ? resolveBackgroundImageUrl(settings) : null;
+
+  useEffect(() => {
+    setBgBroken(false);
+  }, [bgUrl]);
+
+  const blocks = {
+    studyInputs: settings.placement.studyInputs ? (
+      <StudyInputsBlock
+        studyTime={studyTime}
+        breakTime={breakTime}
+        totalSessions={totalSessions}
+        isRunning={isRunning}
+        onStudyTime={setStudyTime}
+        onBreakTime={setBreakTime}
+        onTotalSessions={setTotalSessions}
+        onStart={handleStart}
+        onReset={resetTimer}
+        labelStudy={settings.labels.study}
+        labelBreak={settings.labels.break}
+        labelSessions={settings.labels.sessions}
+        size={settings.blockSizes.studyInputs}
+      />
+    ) : null,
+    timerFace: settings.placement.timerFace ? (
+      <TimerFaceBlock
+        timerContext={timerContext}
+        minuteCount={minuteCount}
+        secondCount={secondCount}
+        pad={pad}
+        titleOverride={settings.labels.timerTitleOverride}
+        size={settings.blockSizes.timerFace}
+      />
+    ) : null,
+    hero: settings.placement.hero ? (
+      <HeroBlock now={now} settings={settings} heroSize={settings.blockSizes.hero} />
+    ) : null,
+    themeToggle: settings.placement.themeToggle ? (
+      <ThemeToggleBlock size={settings.blockSizes.themeToggle} />
+    ) : null,
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 font-['Rubik',sans-serif]">
-      {/* Theme toggle */}
-      <div className="absolute top-4 right-4">
+    <div
+      className={cn(
+        "relative min-h-screen w-full overflow-x-hidden font-['Rubik',sans-serif] font-sans transition-colors duration-300",
+        !bgUrl && 'bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white'
+      )}
+    >
+      {bgUrl && !bgBroken && (
+        <div
+          className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${bgUrl})` }}
+          role="img"
+          aria-hidden
+        />
+      )}
+      {bgUrl && !bgBroken && (
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-background/75 dark:bg-background/80" />
+      )}
+
+      {bgUrl ? (
+        <img src={bgUrl} alt="" className="hidden" onError={() => setBgBroken(true)} />
+      ) : null}
+
+      <div className="relative z-[2] flex min-h-screen flex-col">
         <Button
+          type="button"
           variant="outline"
           size="icon"
-          onClick={() => {
-            // Determine effective theme: if 'system', check actual resolved theme
-            const effectiveTheme = theme === 'system'
-              ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-              : theme;
-            setTheme(effectiveTheme === 'dark' ? 'light' : 'dark');
-          }}
-          className="rounded-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
-          aria-label="Toggle theme"
+          className="absolute left-4 top-4 z-[5] rounded-full border-border bg-background/80 shadow-sm"
+          aria-label="Open settings"
+          onClick={() => setSettingsOpen(true)}
         >
-          <Sun className="h-5 w-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
+          <Settings className="h-5 w-5" />
         </Button>
+
+        <AppSettingsSheet
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          settings={settings}
+          setSettings={setSettings}
+          updatePlacement={updatePlacement}
+          resetToDefaults={resetToDefaults}
+        />
+
+        <TimerGrid placement={settings.placement} blocks={blocks} />
       </div>
-
-      {/* Input fields */}
-      <div className="flex flex-col items-center justify-center h-[25vh] space-y-2">
-        <div className="flex justify-between items-center w-[300px]">
-          <Label className="flex-1 text-gray-900 dark:text-white">Study Time</Label>
-          <Input
-            type="number"
-            value={studyTime || ''}
-            onChange={(e) => setStudyTime(Number(e.target.value))}
-            placeholder="(in minutes)"
-            className="h-[30px] text-sm flex-1 ml-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500"
-          />
-        </div>
-        <div className="flex justify-between items-center w-[300px]">
-          <Label className="flex-1 text-gray-900 dark:text-white">Break Time</Label>
-          <Input
-            type="number"
-            value={breakTime || ''}
-            onChange={(e) => setBreakTime(Number(e.target.value))}
-            placeholder="(in minutes)"
-            className="h-[30px] text-sm flex-1 ml-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500"
-          />
-        </div>
-        <div className="flex justify-between items-center w-[300px] mb-2">
-          <Label className="flex-1 text-gray-900 dark:text-white">Sessions</Label>
-          <Input
-            type="number"
-            value={totalSessions || ''}
-            onChange={(e) => setTotalSessions(Number(e.target.value))}
-            placeholder="No. of Sessions"
-            className="h-[30px] text-sm flex-1 ml-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500"
-          />
-        </div>
-        <div className="flex justify-center items-center w-[300px] space-x-2">
-          <Button
-            onClick={handleStart}
-            className={`h-[35px] flex-[0.5] ${isRunning ? 'bg-gray-800 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200' : 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600'}`}
-          >
-            {isRunning ? 'Stop' : 'Start'}
-          </Button>
-          <Button
-            onClick={resetTimer}
-            className="h-[35px] flex-[0.5] bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"
-          >
-            Reset
-          </Button>
-        </div>
-      </div>
-
-      {/* Timer display */}
-      <main className="flex flex-col items-center justify-center text-[2em] h-[50vh]">
-        <h3 className="mb-4 text-gray-700 dark:text-gray-300">{timerContext}</h3>
-        <h1 className="text-[2em] font-bold text-gray-900 dark:text-white">{pad(minuteCount)}:{pad(secondCount)}</h1>
-      </main>
-
-      {/* Clock/Date display */}
-      <footer className="flex flex-col items-center justify-center text-[2em] h-[25vh]">
-        <h1 className="text-[2em] font-bold text-gray-900 dark:text-white">{currentTime}</h1>
-        <h3 className="text-gray-600 dark:text-gray-400">{currentDate}</h3>
-      </footer>
     </div>
   );
 }
