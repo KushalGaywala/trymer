@@ -1,22 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Settings } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { Button } from './ui/button';
 import { useAppSettings } from '@/hooks/use-app-settings';
-import { resolveBackgroundImageUrl } from '@/lib/app-settings';
+import { resolveBackgroundImageUrl, COMPONENT_IDS, type ComponentId } from '@/lib/app-settings';
+import { detectImageBrightness } from '@/lib/color-utils';
 import { AppSettingsSheet } from '@/components/settings/AppSettingsSheet';
-import { StudyInputsBlock } from '@/components/timer/StudyInputsBlock';
 import { TimerFaceBlock } from '@/components/timer/TimerFaceBlock';
-import { HeroBlock } from '@/components/timer/HeroBlock';
-import { ThemeToggleBlock } from '@/components/timer/ThemeToggleBlock';
-import { TimerGrid } from '@/components/timer/TimerGrid';
+import { TimerInputBlock } from '@/components/timer/TimerInputBlock';
+import { TimerBtnBlock } from '@/components/timer/TimerBtnBlock';
+import { ClockBlock } from '@/components/timer/ClockBlock';
+import { DateLineBlock } from '@/components/timer/DateLineBlock';
+import { TimerGrid, type ComponentEntry } from '@/components/timer/TimerGrid';
 import { cn } from '@/lib/utils';
 
 const AUDIO_ALERT_DURATION = 8;
 
 export function Timer() {
-  const { settings, setSettings, updatePlacement, resetToDefaults, hydrated } = useAppSettings();
+  const { settings, setSettings, moveComponent, updateComponent, resetToDefaults, hydrated } =
+    useAppSettings();
+  const { setTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Timer state
   const [studyTime, setStudyTime] = useState<number>(0);
   const [breakTime, setBreakTime] = useState<number>(0);
   const [totalSessions, setTotalSessions] = useState<number>(0);
@@ -24,7 +30,7 @@ export function Timer() {
   const [secondCount, setSecondCount] = useState<number>(0);
   const [sessionCount, setSessionCount] = useState<number>(1);
   const [timerSwitch, setTimerSwitch] = useState<boolean>(true);
-  const [timerContext, setTimerContext] = useState<string>('Study Timer');
+  const [timerContext, setTimerContext] = useState<string>('Timer');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [now, setNow] = useState(() => new Date());
   const [bgBroken, setBgBroken] = useState(false);
@@ -36,37 +42,28 @@ export function Timer() {
   const audioSecondRef = useRef<number>(0);
   const tickRef = useRef<() => void>(() => {});
 
-  const pad = (digit: number): string => {
-    return digit < 10 ? '0' + digit : digit.toString();
-  };
+  const pad = (digit: number): string => (digit < 10 ? '0' + digit : digit.toString());
 
-  const currContext = (context: string, cur: number, total: number): string => {
-    return `${context} ${cur}/${total}`;
-  };
+  const currContext = (context: string, cur: number, total: number): string =>
+    `${context} ${cur}/${total}`;
 
-  const updateClock = useCallback(() => {
-    setNow(new Date());
-  }, []);
+  const updateClock = useCallback(() => setNow(new Date()), []);
 
   const playAlertAudio = useCallback(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
-
     if (alertAudioRef.current) {
       alertAudioRef.current.play();
       alertAudioRef.current.loop = true;
     }
-
     audioSecondRef.current = 0;
     audioIntervalRef.current = setInterval(() => {
       if (audioSecondRef.current <= AUDIO_ALERT_DURATION) {
         audioSecondRef.current++;
       } else {
-        if (alertAudioRef.current) {
-          alertAudioRef.current.pause();
-        }
+        if (alertAudioRef.current) alertAudioRef.current.pause();
         if (audioIntervalRef.current) {
           clearInterval(audioIntervalRef.current);
           audioIntervalRef.current = null;
@@ -85,25 +82,20 @@ export function Timer() {
       setStudyTime(0);
       setBreakTime(0);
       setTotalSessions(0);
-      setTimerContext('Study Timer');
+      setTimerContext('Timer');
       setIsRunning(false);
-      if (alertAudioRef.current) {
-        alertAudioRef.current.pause();
-      }
-      if (audioIntervalRef.current) {
-        clearInterval(audioIntervalRef.current);
-        audioIntervalRef.current = null;
-      }
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
+      if (alertAudioRef.current) alertAudioRef.current.pause();
+      if (audioIntervalRef.current) { clearInterval(audioIntervalRef.current); audioIntervalRef.current = null; }
+      if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
       return;
     }
 
+    const studyLabel = settings.labels.study || 'Timer';
+    const breakLabel = settings.labels.break || 'Break';
+
     if (timerSwitch) {
       if (secondCount < 59 && minuteCount < studyTime) {
-        setTimerContext(currContext('Study Timer', sessionCount, totalSessions));
+        setTimerContext(currContext(studyLabel, sessionCount, totalSessions));
         setSecondCount(secondCount + 1);
       } else if (minuteCount < studyTime - 1) {
         setSecondCount(0);
@@ -112,7 +104,7 @@ export function Timer() {
         setSecondCount(0);
         setMinuteCount(0);
         setTimerSwitch(false);
-        setTimerContext(currContext('Break Timer', sessionCount, totalSessions));
+        setTimerContext(currContext(breakLabel, sessionCount, totalSessions));
         setSessionCount(sessionCount + 1);
         playAlertAudio();
       } else {
@@ -120,7 +112,7 @@ export function Timer() {
       }
     } else {
       if (secondCount < 59 && minuteCount < breakTime) {
-        setTimerContext(currContext('Break Timer', sessionCount - 1, totalSessions));
+        setTimerContext(currContext(breakLabel, sessionCount - 1, totalSessions));
         setSecondCount(secondCount + 1);
       } else if (minuteCount < breakTime - 1) {
         setSecondCount(0);
@@ -129,44 +121,33 @@ export function Timer() {
         setSecondCount(0);
         setMinuteCount(0);
         setTimerSwitch(true);
-        setTimerContext(currContext('Study Timer', sessionCount, totalSessions));
+        setTimerContext(currContext(studyLabel, sessionCount, totalSessions));
         playAlertAudio();
       } else {
         setSecondCount(secondCount + 1);
       }
     }
-  }, [sessionCount, totalSessions, timerSwitch, secondCount, minuteCount, studyTime, breakTime, playAlertAudio]);
+  }, [sessionCount, totalSessions, timerSwitch, secondCount, minuteCount, studyTime, breakTime, playAlertAudio, settings.labels]);
 
   tickRef.current = tick;
 
   useEffect(() => {
     alertAudioRef.current = new Audio('/mixkit-industry-alarm-tone-2979.wav');
-
     updateClock();
     clockIntervalRef.current = setInterval(updateClock, 1000);
-
     return () => {
       if (clockIntervalRef.current) clearInterval(clockIntervalRef.current);
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
-      if (alertAudioRef.current) {
-        alertAudioRef.current.pause();
-      }
+      if (alertAudioRef.current) alertAudioRef.current.pause();
     };
   }, [updateClock]);
 
   useEffect(() => {
     if (!isRunning) return;
-
-    timerIntervalRef.current = setInterval(() => {
-      tickRef.current();
-    }, 1000);
-
+    timerIntervalRef.current = setInterval(() => { tickRef.current(); }, 1000);
     return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
+      if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
     };
   }, [isRunning]);
 
@@ -175,17 +156,9 @@ export function Timer() {
       setIsRunning(true);
     } else {
       setIsRunning(false);
-      if (alertAudioRef.current) {
-        alertAudioRef.current.pause();
-      }
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-      if (audioIntervalRef.current) {
-        clearInterval(audioIntervalRef.current);
-        audioIntervalRef.current = null;
-      }
+      if (alertAudioRef.current) alertAudioRef.current.pause();
+      if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+      if (audioIntervalRef.current) { clearInterval(audioIntervalRef.current); audioIntervalRef.current = null; }
     }
   };
 
@@ -197,70 +170,165 @@ export function Timer() {
     setStudyTime(0);
     setBreakTime(0);
     setTotalSessions(0);
-    setTimerContext('Study Timer');
+    setTimerContext('Timer');
     setIsRunning(false);
-    if (alertAudioRef.current) {
-      alertAudioRef.current.pause();
-    }
-    if (audioIntervalRef.current) {
-      clearInterval(audioIntervalRef.current);
-      audioIntervalRef.current = null;
-    }
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
+    if (alertAudioRef.current) alertAudioRef.current.pause();
+    if (audioIntervalRef.current) { clearInterval(audioIntervalRef.current); audioIntervalRef.current = null; }
+    if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
   };
 
+  // Resolve background URL
   const bgUrl = hydrated ? resolveBackgroundImageUrl(settings) : null;
 
-  useEffect(() => {
-    setBgBroken(false);
-  }, [bgUrl]);
+  useEffect(() => { setBgBroken(false); }, [bgUrl]);
 
-  const blocks = {
-    studyInputs: settings.placement.studyInputs ? (
-      <StudyInputsBlock
-        studyTime={studyTime}
-        breakTime={breakTime}
-        totalSessions={totalSessions}
-        isRunning={isRunning}
-        onStudyTime={setStudyTime}
-        onBreakTime={setBreakTime}
-        onTotalSessions={setTotalSessions}
-        onStart={handleStart}
-        onReset={resetTimer}
-        labelStudy={settings.labels.study}
-        labelBreak={settings.labels.break}
-        labelSessions={settings.labels.sessions}
-        size={settings.blockSizes.studyInputs}
-      />
-    ) : null,
-    timerFace: settings.placement.timerFace ? (
-      <TimerFaceBlock
-        timerContext={timerContext}
-        minuteCount={minuteCount}
-        secondCount={secondCount}
-        pad={pad}
-        titleOverride={settings.labels.timerTitleOverride}
-        size={settings.blockSizes.timerFace}
-      />
-    ) : null,
-    hero: settings.placement.hero ? (
-      <HeroBlock now={now} settings={settings} heroSize={settings.blockSizes.hero} />
-    ) : null,
-    themeToggle: settings.placement.themeToggle ? (
-      <ThemeToggleBlock size={settings.blockSizes.themeToggle} />
-    ) : null,
+  // Auto-detect background brightness and set dark/light theme
+  useEffect(() => {
+    if (!bgUrl) {
+      setTheme('system');
+      return;
+    }
+    detectImageBrightness(bgUrl).then((brightness) => {
+      setTheme(brightness === 'dark' ? 'dark' : 'light');
+    });
+  }, [bgUrl, setTheme]);
+
+  // Build individual component nodes
+  const comps = settings.components;
+
+  // Determine if clock should be suppressed (timer face takes priority in same slot)
+  const clockSuppressed =
+    comps.timerFace.slot !== null &&
+    comps.clock.slot !== null &&
+    comps.timerFace.slot === comps.clock.slot;
+
+  const componentNodes: Record<ComponentId, ComponentEntry | null> = {
+    timerFace: {
+      id: 'timerFace',
+      node: (
+        <TimerFaceBlock
+          timerContext={timerContext}
+          minuteCount={minuteCount}
+          secondCount={secondCount}
+          pad={pad}
+          titleOverride={settings.labels.timerTitleOverride}
+          size={comps.timerFace.size}
+          color={comps.timerFace.color}
+        />
+      ),
+    },
+    timerStudyInput: {
+      id: 'timerStudyInput',
+      node: (
+        <TimerInputBlock
+          inputType="study"
+          value={studyTime}
+          isRunning={isRunning}
+          onChange={setStudyTime}
+          label={settings.labels.study || 'Study'}
+          color={comps.timerStudyInput.color}
+          size={comps.timerStudyInput.size}
+        />
+      ),
+    },
+    timerBreakInput: {
+      id: 'timerBreakInput',
+      node: (
+        <TimerInputBlock
+          inputType="break"
+          value={breakTime}
+          isRunning={isRunning}
+          onChange={setBreakTime}
+          label={settings.labels.break || 'Break'}
+          color={comps.timerBreakInput.color}
+          size={comps.timerBreakInput.size}
+        />
+      ),
+    },
+    timerSessionsInput: {
+      id: 'timerSessionsInput',
+      node: (
+        <TimerInputBlock
+          inputType="sessions"
+          value={totalSessions}
+          isRunning={isRunning}
+          onChange={setTotalSessions}
+          label={settings.labels.sessions || 'Sessions'}
+          color={comps.timerSessionsInput.color}
+          size={comps.timerSessionsInput.size}
+        />
+      ),
+    },
+    timerStartBtn: {
+      id: 'timerStartBtn',
+      node: (
+        <TimerBtnBlock
+          btnType="start"
+          isRunning={isRunning}
+          onClick={handleStart}
+          color={comps.timerStartBtn.color}
+          size={comps.timerStartBtn.size}
+        />
+      ),
+    },
+    timerResetBtn: {
+      id: 'timerResetBtn',
+      node: (
+        <TimerBtnBlock
+          btnType="reset"
+          isRunning={isRunning}
+          onClick={resetTimer}
+          color={comps.timerResetBtn.color}
+          size={comps.timerResetBtn.size}
+        />
+      ),
+    },
+    clock: clockSuppressed
+      ? null
+      : {
+          id: 'clock',
+          node: (
+            <ClockBlock
+              now={now}
+              settings={settings}
+              size={comps.clock.size}
+              color={comps.clock.color}
+            />
+          ),
+        },
+    dateLine: {
+      id: 'dateLine',
+      node: (
+        <DateLineBlock
+          now={now}
+          color={comps.dateLine.color}
+          size={comps.dateLine.size}
+        />
+      ),
+    },
   };
+
+  // Build slot map: slot → ComponentEntry[]
+  const slotMap: Record<string, ComponentEntry[]> = {};
+  for (const id of COMPONENT_IDS) {
+    const slot = comps[id].slot;
+    if (!slot) continue;
+    const entry = componentNodes[id];
+    if (!entry) continue;
+    if (!slotMap[slot]) slotMap[slot] = [];
+    slotMap[slot].push(entry);
+  }
+
+  const opacity = settings.background.opacity;
 
   return (
     <div
       className={cn(
         "relative min-h-screen w-full overflow-x-hidden font-['Rubik',sans-serif] font-sans transition-colors duration-300",
-        !bgUrl && 'bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white'
+        !bgUrl && 'bg-background text-foreground'
       )}
     >
+      {/* Background image */}
       {bgUrl && !bgBroken && (
         <div
           className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center"
@@ -269,15 +337,21 @@ export function Timer() {
           aria-hidden
         />
       )}
+      {/* Overlay with user-configurable opacity */}
       {bgUrl && !bgBroken && (
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-background/75 dark:bg-background/80" />
+        <div
+          className="pointer-events-none absolute inset-0 z-[1] bg-background"
+          style={{ opacity }}
+        />
       )}
 
+      {/* Hidden img for error detection */}
       {bgUrl ? (
         <img src={bgUrl} alt="" className="hidden" onError={() => setBgBroken(true)} />
       ) : null}
 
       <div className="relative z-[2] flex min-h-screen flex-col">
+        {/* Settings button */}
         <Button
           type="button"
           variant="outline"
@@ -294,11 +368,17 @@ export function Timer() {
           onOpenChange={setSettingsOpen}
           settings={settings}
           setSettings={setSettings}
-          updatePlacement={updatePlacement}
+          updateComponent={updateComponent}
+          moveComponent={moveComponent}
           resetToDefaults={resetToDefaults}
         />
 
-        <TimerGrid placement={settings.placement} blocks={blocks} />
+        <TimerGrid
+          cols={settings.grid.cols}
+          rows={settings.grid.rows}
+          slotMap={slotMap}
+          onMove={moveComponent}
+        />
       </div>
     </div>
   );

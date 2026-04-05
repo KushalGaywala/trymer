@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   type AppSettings,
-  type BlockId,
-  type GridSlot,
+  type ComponentId,
+  type ComponentConfig,
   STORAGE_KEY,
   defaultAppSettings,
   mergeWithDefaults,
@@ -37,31 +37,48 @@ export function useAppSettings() {
     setHydrated(true);
   }, []);
 
-  const setSettings = useCallback((next: AppSettings | ((prev: AppSettings) => AppSettings)) => {
-    setSettingsState((prev) => {
-      const resolved = typeof next === 'function' ? next(prev) : next;
-      try {
-        save(resolved);
-      } catch {
-        /* quota — caller may toast */
-      }
-      return resolved;
-    });
-  }, []);
+  const setSettings = useCallback(
+    (next: AppSettings | ((prev: AppSettings) => AppSettings)) => {
+      setSettingsState((prev) => {
+        const resolved = typeof next === 'function' ? next(prev) : next;
+        try {
+          save(resolved);
+        } catch {
+          /* quota — caller may toast */
+        }
+        return resolved;
+      });
+    },
+    []
+  );
 
-  const updatePlacement = useCallback((block: BlockId, slot: GridSlot | null) => {
-    setSettings((prev) => {
-      const next = { ...prev, placement: { ...prev.placement } };
-      const previousOwner = (Object.entries(next.placement) as [BlockId, GridSlot | null][]).find(
-        ([id, s]) => id !== block && s === slot && slot !== null
-      );
-      if (previousOwner) {
-        next.placement[previousOwner[0]] = prev.placement[block];
-      }
-      next.placement[block] = slot;
-      return next;
-    });
-  }, [setSettings]);
+  /** Move a component to a new slot (or null to hide it). */
+  const moveComponent = useCallback(
+    (id: ComponentId, slot: string | null) => {
+      setSettings((prev) => ({
+        ...prev,
+        components: {
+          ...prev.components,
+          [id]: { ...prev.components[id], slot },
+        },
+      }));
+    },
+    [setSettings]
+  );
+
+  /** Update any field of a component's config. */
+  const updateComponent = useCallback(
+    (id: ComponentId, patch: Partial<ComponentConfig>) => {
+      setSettings((prev) => ({
+        ...prev,
+        components: {
+          ...prev.components,
+          [id]: { ...prev.components[id], ...patch },
+        },
+      }));
+    },
+    [setSettings]
+  );
 
   const resetToDefaults = useCallback(() => {
     setSettings(defaultAppSettings);
@@ -71,10 +88,11 @@ export function useAppSettings() {
     () => ({
       settings,
       setSettings,
-      updatePlacement,
+      moveComponent,
+      updateComponent,
       resetToDefaults,
       hydrated,
     }),
-    [settings, setSettings, updatePlacement, resetToDefaults, hydrated]
+    [settings, setSettings, moveComponent, updateComponent, resetToDefaults, hydrated]
   );
 }
