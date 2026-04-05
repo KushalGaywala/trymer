@@ -3,6 +3,7 @@ import {
   type AppSettings,
   type ComponentId,
   type ComponentConfig,
+  COMPONENT_IDS,
   STORAGE_KEY,
   defaultAppSettings,
   mergeWithDefaults,
@@ -44,7 +45,7 @@ export function useAppSettings() {
         try {
           save(resolved);
         } catch {
-          /* quota — caller may toast */
+          /* quota */
         }
         return resolved;
       });
@@ -52,21 +53,36 @@ export function useAppSettings() {
     []
   );
 
-  /** Move a component to a new slot (or null to hide it). */
+  /**
+   * Move a component to a new slot.
+   * If another component already occupies that slot, they swap.
+   * Pass null to hide the component.
+   */
   const moveComponent = useCallback(
     (id: ComponentId, slot: string | null) => {
-      setSettings((prev) => ({
-        ...prev,
-        components: {
-          ...prev.components,
-          [id]: { ...prev.components[id], slot },
-        },
-      }));
+      setSettings((prev) => {
+        const updated = { ...prev.components };
+        const currentSlot = updated[id].slot;
+
+        if (slot !== null) {
+          // Find any component already occupying the target slot
+          const occupant = (COMPONENT_IDS as readonly ComponentId[]).find(
+            (otherId) => otherId !== id && updated[otherId].slot === slot
+          );
+          if (occupant) {
+            // Swap: occupant moves to where `id` was
+            updated[occupant] = { ...updated[occupant], slot: currentSlot };
+          }
+        }
+
+        updated[id] = { ...updated[id], slot };
+        return { ...prev, components: updated };
+      });
     },
     [setSettings]
   );
 
-  /** Update any field of a component's config. */
+  /** Update any style/config field of a component. */
   const updateComponent = useCallback(
     (id: ComponentId, patch: Partial<ComponentConfig>) => {
       setSettings((prev) => ({

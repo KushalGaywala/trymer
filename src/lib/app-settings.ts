@@ -1,8 +1,7 @@
 import { z } from 'zod';
 
-export const STORAGE_KEY = 'trymer-settings-v2';
+export const STORAGE_KEY = 'trymer-settings-v3';
 
-// Grid slot format: "r{row}c{col}" (zero-indexed), e.g. "r0c0" = top-left in a 3x3
 export type GridSlot = string;
 
 export const COMPONENT_IDS = [
@@ -31,12 +30,58 @@ export const HERO_MODE_KINDS = [
 ] as const;
 export type HeroModeKind = (typeof HERO_MODE_KINDS)[number];
 
+export const FONT_FAMILIES = [
+  { label: 'App default (Rubik)', value: 'inherit' },
+  { label: 'Sans-serif', value: 'Arial, sans-serif' },
+  { label: 'Serif', value: 'Georgia, serif' },
+  { label: 'Monospace', value: '"Courier New", monospace' },
+  { label: 'Impact', value: 'Impact, sans-serif' },
+  { label: 'Custom…', value: 'custom' },
+] as const;
+
 const componentConfigSchema = z.object({
+  // Layout
   slot: z.string().nullable(),
-  color: z.string().default('auto'), // 'auto' or any CSS color string
+  align: z.enum(['left', 'center', 'right']).default('center'),
+
+  // Text
+  color: z.string().default('auto'),        // 'auto' or CSS color
   size: z.enum(TEXT_SIZES).default('normal'),
+  fontFamily: z.string().default('inherit'), // CSS font-family or 'inherit'
+  fontWeight: z.number().min(100).max(900).default(400),
+  italic: z.boolean().default(false),
+  letterSpacing: z.number().min(-5).max(20).default(0), // px
+
+  // Box
+  bgColor: z.string().default('transparent'),
+  borderColor: z.string().default('transparent'),
+  borderWidth: z.number().min(0).max(20).default(0),  // px
+  borderRadius: z.number().min(0).max(100).default(0), // px
+  paddingX: z.number().min(0).max(120).default(8),    // px
+  paddingY: z.number().min(0).max(120).default(4),    // px
+  opacity: z.number().min(0).max(1).default(1),
+  shadow: z.boolean().default(false),
 });
 export type ComponentConfig = z.infer<typeof componentConfigSchema>;
+
+const defaultCompCfg = {
+  slot: null as string | null,
+  align: 'center' as const,
+  color: 'auto',
+  size: 'normal' as const,
+  fontFamily: 'inherit',
+  fontWeight: 400,
+  italic: false,
+  letterSpacing: 0,
+  bgColor: 'transparent',
+  borderColor: 'transparent',
+  borderWidth: 0,
+  borderRadius: 0,
+  paddingX: 8,
+  paddingY: 4,
+  opacity: 1,
+  shadow: false,
+};
 
 const componentsSchema = z
   .object({
@@ -50,14 +95,14 @@ const componentsSchema = z
     dateLine: componentConfigSchema,
   })
   .default({
-    timerFace: { slot: 'r1c1', color: 'auto', size: 'normal' },
-    timerStudyInput: { slot: 'r0c1', color: 'auto', size: 'normal' },
-    timerBreakInput: { slot: 'r0c1', color: 'auto', size: 'normal' },
-    timerSessionsInput: { slot: 'r0c1', color: 'auto', size: 'normal' },
-    timerStartBtn: { slot: 'r2c0', color: 'auto', size: 'normal' },
-    timerResetBtn: { slot: 'r2c2', color: 'auto', size: 'normal' },
-    clock: { slot: 'r2c1', color: 'auto', size: 'normal' },
-    dateLine: { slot: null, color: 'auto', size: 'normal' },
+    timerFace:         { ...defaultCompCfg, slot: 'r1c1' },
+    timerStudyInput:   { ...defaultCompCfg, slot: 'r0c1' },
+    timerBreakInput:   { ...defaultCompCfg, slot: 'r0c2' },
+    timerSessionsInput:{ ...defaultCompCfg, slot: 'r0c0' },
+    timerStartBtn:     { ...defaultCompCfg, slot: 'r2c0' },
+    timerResetBtn:     { ...defaultCompCfg, slot: 'r2c2' },
+    clock:             { ...defaultCompCfg, slot: 'r2c1' },
+    dateLine:          { ...defaultCompCfg, slot: null },
   });
 
 const gridSchema = z
@@ -76,7 +121,7 @@ const backgroundSchema = z
     opacity: z.number().min(0).max(1).default(0.5),
   })
   .default({
-    mode: 'none',
+    mode: 'category',   // default: nature category
     url: '',
     dataUrl: '',
     category: 'nature',
@@ -108,7 +153,7 @@ export const appSettingsSchema = z.object({
   digitalFormat: z.enum(['12h', '24h']).default('24h'),
   digitalShowSeconds: z.boolean().default(true),
   customHeroTemplate: z.string().default('{time}'),
-  showDateUnderHero: z.boolean().default(true),
+  showDateUnderHero: z.boolean().default(false),
 });
 
 export type AppSettings = z.infer<typeof appSettingsSchema>;
@@ -141,6 +186,26 @@ export function parseGridSlot(slot: string): { row: number; col: number } | null
   const match = slot.match(/^r(\d+)c(\d+)$/);
   if (!match) return null;
   return { row: parseInt(match[1]), col: parseInt(match[2]) };
+}
+
+/** Convert a ComponentConfig's style fields into an inline React style object. */
+export function buildComponentStyle(cfg: ComponentConfig): React.CSSProperties {
+  return {
+    fontFamily: cfg.fontFamily === 'inherit' ? undefined : cfg.fontFamily,
+    fontWeight: cfg.fontWeight !== 400 ? cfg.fontWeight : undefined,
+    fontStyle: cfg.italic ? 'italic' : undefined,
+    letterSpacing: cfg.letterSpacing !== 0 ? `${cfg.letterSpacing}px` : undefined,
+    backgroundColor: cfg.bgColor !== 'transparent' ? cfg.bgColor : undefined,
+    border:
+      cfg.borderWidth > 0
+        ? `${cfg.borderWidth}px solid ${cfg.borderColor || 'currentColor'}`
+        : undefined,
+    borderRadius: cfg.borderRadius > 0 ? `${cfg.borderRadius}px` : undefined,
+    padding: `${cfg.paddingY}px ${cfg.paddingX}px`,
+    opacity: cfg.opacity < 1 ? cfg.opacity : undefined,
+    boxShadow: cfg.shadow ? '0 4px 24px 0 rgba(0,0,0,0.25)' : undefined,
+    color: cfg.color !== 'auto' ? cfg.color : undefined,
+  };
 }
 
 export function sizeClass(
@@ -176,7 +241,7 @@ export function sizeClass(
   return map[size][role];
 }
 
-// Layout presets
+// ── Layout presets ───────────────────────────────────────────────────────────
 export type LayoutPreset = {
   id: string;
   name: string;
@@ -189,16 +254,16 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
   {
     id: 'timer-clock',
     name: 'Timer + Clock',
-    description: 'Inputs top, timer center, clock & controls bottom',
+    description: 'Inputs spread top, timer center, clock & controls bottom',
     components: {
-      timerStudyInput: { slot: 'r0c1' },
-      timerBreakInput: { slot: 'r0c1' },
-      timerSessionsInput: { slot: 'r0c1' },
-      timerFace: { slot: 'r1c1' },
-      timerStartBtn: { slot: 'r2c0' },
-      clock: { slot: 'r2c1' },
-      timerResetBtn: { slot: 'r2c2' },
-      dateLine: { slot: null },
+      timerSessionsInput: { slot: 'r0c0' },
+      timerStudyInput:    { slot: 'r0c1' },
+      timerBreakInput:    { slot: 'r0c2' },
+      timerFace:          { slot: 'r1c1' },
+      timerStartBtn:      { slot: 'r2c0' },
+      clock:              { slot: 'r2c1' },
+      timerResetBtn:      { slot: 'r2c2' },
+      dateLine:           { slot: null },
     },
     grid: { cols: 3, rows: 3 },
   },
@@ -207,14 +272,14 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
     name: 'Clock Only',
     description: 'Just the clock, centered',
     components: {
-      timerStudyInput: { slot: null },
-      timerBreakInput: { slot: null },
+      timerStudyInput:    { slot: null },
+      timerBreakInput:    { slot: null },
       timerSessionsInput: { slot: null },
-      timerFace: { slot: null },
-      timerStartBtn: { slot: null },
-      clock: { slot: 'r1c1' },
-      timerResetBtn: { slot: null },
-      dateLine: { slot: 'r2c1' },
+      timerFace:          { slot: null },
+      timerStartBtn:      { slot: null },
+      clock:              { slot: 'r1c1' },
+      timerResetBtn:      { slot: null },
+      dateLine:           { slot: 'r2c1' },
     },
     grid: { cols: 3, rows: 3 },
   },
@@ -223,14 +288,14 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
     name: 'Minimal Timer',
     description: 'Timer only, no clock',
     components: {
-      timerStudyInput: { slot: 'r0c0' },
-      timerBreakInput: { slot: 'r0c1' },
+      timerStudyInput:    { slot: 'r0c0' },
+      timerBreakInput:    { slot: 'r0c1' },
       timerSessionsInput: { slot: 'r0c2' },
-      timerFace: { slot: 'r1c1' },
-      timerStartBtn: { slot: 'r2c0' },
-      timerResetBtn: { slot: 'r2c2' },
-      clock: { slot: null },
-      dateLine: { slot: null },
+      timerFace:          { slot: 'r1c1' },
+      timerStartBtn:      { slot: 'r2c0' },
+      timerResetBtn:      { slot: 'r2c2' },
+      clock:              { slot: null },
+      dateLine:           { slot: null },
     },
     grid: { cols: 3, rows: 3 },
   },
@@ -239,14 +304,14 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
     name: 'Full Spread',
     description: 'Everything visible across the grid',
     components: {
-      timerStudyInput: { slot: 'r0c0' },
-      timerBreakInput: { slot: 'r0c1' },
+      timerStudyInput:    { slot: 'r0c0' },
+      timerBreakInput:    { slot: 'r0c1' },
       timerSessionsInput: { slot: 'r0c2' },
-      timerFace: { slot: 'r1c1' },
-      timerStartBtn: { slot: 'r1c0' },
-      timerResetBtn: { slot: 'r1c2' },
-      clock: { slot: 'r2c1' },
-      dateLine: { slot: 'r2c2' },
+      timerFace:          { slot: 'r1c1' },
+      timerStartBtn:      { slot: 'r1c0' },
+      timerResetBtn:      { slot: 'r1c2' },
+      clock:              { slot: 'r2c1' },
+      dateLine:           { slot: 'r2c2' },
     },
     grid: { cols: 3, rows: 3 },
   },
