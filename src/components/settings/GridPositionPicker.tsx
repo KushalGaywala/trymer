@@ -8,83 +8,79 @@ type Props = {
   gridCols: number;
   gridRows: number;
   onChange: (slot: string | null) => void;
-  /** Slots occupied by *other* components — shown dimmed */
-  takenSlots?: string[];
-  /** Label for the hidden/none button */
-  noneLabel?: string;
+  /**
+   * Map of slot → count of OTHER components already in that slot.
+   * Used to show occupancy badges (does NOT block selection).
+   */
+  occupancy?: Record<string, number>;
 };
 
-// Cap display to 6x6 to avoid overflow
-const MAX_DISPLAY = 6;
+const MAX = 6;
 
-export function GridPositionPicker({
-  value,
-  gridCols,
-  gridRows,
-  onChange,
-  takenSlots = [],
-  noneLabel = 'Hidden',
-}: Props) {
-  const displayCols = Math.min(gridCols, MAX_DISPLAY);
-  const displayRows = Math.min(gridRows, MAX_DISPLAY);
-
+export function GridPositionPicker({ value, gridCols, gridRows, onChange, occupancy = {} }: Props) {
+  const displayCols = Math.min(gridCols, MAX);
+  const displayRows = Math.min(gridRows, MAX);
   const cellSize = displayCols <= 3 && displayRows <= 3 ? 'w-8 h-8' : 'w-6 h-6';
 
-  const rows: React.ReactNode[] = [];
-  for (let r = 0; r < displayRows; r++) {
-    const cells: React.ReactNode[] = [];
-    for (let c = 0; c < displayCols; c++) {
+  const rows = Array.from({ length: displayRows }, (_, r) =>
+    Array.from({ length: displayCols }, (_, c) => {
       const slot = gridSlotId(r, c);
       const isSelected = value === slot;
-      const isTaken = takenSlots.includes(slot) && !isSelected;
+      const count = occupancy[slot] ?? 0;   // other components here
 
-      cells.push(
+      return (
         <button
           key={slot}
           type="button"
-          title={slot}
+          title={count > 0 ? `${slot} — ${count} other component${count > 1 ? 's' : ''} here` : slot}
           onClick={() => onChange(isSelected ? null : slot)}
           className={cn(
             cellSize,
-            'rounded border text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'relative rounded border text-[9px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             isSelected
               ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-              : isTaken
-              ? 'border-border/60 bg-muted/40 text-muted-foreground/50 hover:border-primary/60 hover:bg-primary/10'
+              : count > 0
+              ? 'border-primary/40 bg-primary/10 text-primary/70 hover:border-primary hover:bg-primary/20'
               : 'border-border bg-background hover:border-primary/70 hover:bg-primary/10'
           )}
           aria-pressed={isSelected}
           aria-label={`Grid position ${slot}`}
         >
-          {/* Show a dot if selected */}
-          {isSelected && <span className="block h-2 w-2 rounded-full bg-current mx-auto" />}
+          {isSelected && (
+            <span className="absolute inset-0 flex items-center justify-center">
+              <span className="block h-2 w-2 rounded-full bg-current" />
+            </span>
+          )}
+          {!isSelected && count > 0 && (
+            <span className="absolute inset-0 flex items-center justify-center leading-none">
+              +{count}
+            </span>
+          )}
         </button>
       );
-    }
-    rows.push(
-      <div key={r} className="flex gap-1">
-        {cells}
-      </div>
-    );
-  }
+    })
+  );
 
-  // Show note if grid is larger than display cap
-  const clipped = gridCols > MAX_DISPLAY || gridRows > MAX_DISPLAY;
+  const clipped = gridCols > MAX || gridRows > MAX;
 
-  // Show current position label
-  const posLabel = value ? (() => {
-    const parsed = parseGridSlot(value);
-    if (!parsed) return value;
-    return `Row ${parsed.row + 1}, Col ${parsed.col + 1}`;
-  })() : null;
+  const posLabel = value
+    ? (() => {
+        const p = parseGridSlot(value);
+        return p ? `Row ${p.row + 1}, Col ${p.col + 1}` : value;
+      })()
+    : null;
 
   return (
     <div className="flex items-start gap-3">
-      {/* Grid visual */}
-      <div className="flex flex-col gap-1">{rows}</div>
+      {/* Grid */}
+      <div className="flex flex-col gap-1">
+        {rows.map((cells, r) => (
+          <div key={r} className="flex gap-1">{cells}</div>
+        ))}
+      </div>
 
+      {/* Sidebar */}
       <div className="flex flex-col gap-1 pt-0.5">
-        {/* Hidden button */}
         <button
           type="button"
           onClick={() => onChange(null)}
@@ -97,17 +93,14 @@ export function GridPositionPicker({
           aria-pressed={value === null}
         >
           <X className="h-3 w-3" />
-          {noneLabel}
+          Hidden
         </button>
 
         {posLabel && (
-          <span className="text-[10px] text-muted-foreground leading-tight">{posLabel}</span>
+          <span className="text-[10px] text-muted-foreground">{posLabel}</span>
         )}
-
         {clipped && (
-          <span className="text-[10px] text-muted-foreground leading-tight">
-            Grid capped at {MAX_DISPLAY}×{MAX_DISPLAY}
-          </span>
+          <span className="text-[10px] text-muted-foreground">Showing {MAX}×{MAX}</span>
         )}
       </div>
     </div>

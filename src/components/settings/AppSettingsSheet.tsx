@@ -52,13 +52,13 @@ const COMPONENT_LABELS: Record<ComponentId, string> = {
 };
 
 const HERO_MODE_LABELS: Record<AppSettings['heroModeKind'], string> = {
-  digital:         'Digital time',
-  timeInQuotes:    'Time in quotes',
-  timeWords:       'Time in words',
-  quote:           'Random quote',
-  greeting:        'Greeting',
-  creativeGreeting:'Creative greeting',
-  custom:          'Custom template',
+  digital:          'Digital time',
+  timeInQuotes:     'Time in quotes',
+  timeWords:        'Time in words',
+  quote:            'Random quote',
+  greeting:         'Greeting',
+  creativeGreeting: 'Creative greeting',
+  custom:           'Custom template',
 };
 
 type Props = {
@@ -68,54 +68,35 @@ type Props = {
   setSettings: Dispatch<SetStateAction<AppSettings>>;
   updateComponent: (id: ComponentId, patch: Partial<ComponentConfig>) => void;
   moveComponent: (id: ComponentId, slot: string | null) => void;
+  setSlotDirection: (slot: string, dir: 'column' | 'row') => void;
   resetToDefaults: () => void;
 };
 
-// ── small helpers ────────────────────────────────────────────────────────────
+// ── tiny helpers ─────────────────────────────────────────────────────────────
 
 function ColorSwatch({
-  color,
-  onChange,
-  allowAuto,
-  autoActive,
-  onAuto,
+  color, onChange, allowAuto = false, autoActive = false, onAuto,
 }: {
-  color: string;
-  onChange: (c: string) => void;
-  allowAuto?: boolean;
-  autoActive?: boolean;
-  onAuto?: () => void;
+  color: string; onChange: (c: string) => void;
+  allowAuto?: boolean; autoActive?: boolean; onAuto?: () => void;
 }) {
   return (
     <div className="flex items-center gap-1">
       {allowAuto && (
-        <button
-          type="button"
-          onClick={onAuto}
-          className={cn(
-            'rounded border px-2 py-0.5 text-xs transition-colors',
+        <button type="button" onClick={onAuto}
+          className={cn('rounded border px-2 py-0.5 text-xs transition-colors',
             autoActive
               ? 'border-primary bg-primary/10 text-primary'
               : 'border-border bg-background text-muted-foreground hover:border-primary/50'
           )}
-        >
-          Auto
-        </button>
+        >Auto</button>
       )}
       <label className="relative cursor-pointer" title="Pick color">
-        <div
-          className={cn(
-            'h-6 w-6 rounded border transition-all',
-            !autoActive ? 'border-primary shadow-sm' : 'border-border opacity-50'
-          )}
-          style={{ backgroundColor: color !== 'auto' ? color : '#888888' }}
-        />
-        <input
-          type="color"
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          value={color !== 'auto' ? color : '#888888'}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <div className={cn('h-6 w-6 rounded border', !autoActive ? 'border-primary shadow-sm' : 'border-border opacity-50')}
+          style={{ backgroundColor: color !== 'auto' && color !== 'transparent' ? color : '#888888' }} />
+        <input type="color" className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          value={color !== 'auto' && color !== 'transparent' ? color : '#888888'}
+          onChange={(e) => onChange(e.target.value)} />
       </label>
     </div>
   );
@@ -130,108 +111,91 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function SliderRow({
-  label,
-  value,
-  min,
-  max,
-  step = 1,
-  unit = '',
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  unit?: string;
+function SliderRow({ label, value, min, max, step = 1, unit = '', onChange }: {
+  label: string; value: number; min: number; max: number; step?: number; unit?: string;
   onChange: (v: number) => void;
 }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
         <Label className="text-xs">{label}</Label>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {value}{unit}
-        </span>
+        <span className="text-xs text-muted-foreground tabular-nums">{value}{unit}</span>
       </div>
-      <Slider
-        min={min} max={max} step={step}
-        value={[value]}
-        onValueChange={([v]) => onChange(v)}
-      />
+      <Slider min={min} max={max} step={step} value={[value]} onValueChange={([v]) => onChange(v)} />
     </div>
   );
 }
 
-// ── main component ───────────────────────────────────────────────────────────
+// ── main ─────────────────────────────────────────────────────────────────────
 
 export function AppSettingsSheet({
-  open,
-  onOpenChange,
-  settings,
-  setSettings,
-  updateComponent,
-  moveComponent,
-  resetToDefaults,
+  open, onOpenChange, settings, setSettings,
+  updateComponent, moveComponent, setSlotDirection, resetToDefaults,
 }: Props) {
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
+  const ref = useRef(settings);
+  ref.current = settings;
 
   const trySave = (next: AppSettings) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      setSettings(next);
-    } catch {
-      toast.error('Could not save — storage may be full.');
-    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); setSettings(next); }
+    catch { toast.error('Could not save — storage may be full.'); }
   };
 
-  const patch = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) =>
-    trySave({ ...settingsRef.current, [key]: value });
+  const patch = <K extends keyof AppSettings>(key: K, val: AppSettings[K]) =>
+    trySave({ ...ref.current, [key]: val });
 
-  const patchBg = (partial: Partial<AppSettings['background']>) =>
-    trySave({ ...settingsRef.current, background: { ...settingsRef.current.background, ...partial } });
+  const patchBg = (p: Partial<AppSettings['background']>) =>
+    trySave({ ...ref.current, background: { ...ref.current.background, ...p } });
 
-  const patchGrid = (partial: Partial<AppSettings['grid']>) =>
-    trySave({ ...settingsRef.current, grid: { ...settingsRef.current.grid, ...partial } });
+  const patchGrid = (p: Partial<AppSettings['grid']>) =>
+    trySave({ ...ref.current, grid: { ...ref.current.grid, ...p } });
 
-  const patchLabels = (partial: Partial<AppSettings['labels']>) =>
-    setSettings((s) => ({ ...s, labels: { ...s.labels, ...partial } }));
+  const patchLabels = (p: Partial<AppSettings['labels']>) =>
+    setSettings((s) => ({ ...s, labels: { ...s.labels, ...p } }));
 
-  const onUpload = (file: File | undefined) => {
+  const onUpload = (file?: File) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = reader.result as string;
       try {
-        trySave({ ...settingsRef.current, background: { ...settingsRef.current.background, mode: 'upload', dataUrl } });
-        toast.success('Background image saved');
-      } catch {
-        toast.error('Image too large. Use a URL instead.');
-      }
+        trySave({ ...ref.current, background: { ...ref.current.background, mode: 'upload', dataUrl: reader.result as string } });
+        toast.success('Background saved');
+      } catch { toast.error('Image too large — use a URL instead.'); }
     };
     reader.readAsDataURL(file);
   };
 
-  const applyPreset = (presetId: string) => {
-    const preset = LAYOUT_PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    const next: AppSettings = { ...settingsRef.current };
-    if (preset.grid) next.grid = { ...next.grid, ...preset.grid };
-    const updatedComponents = { ...next.components };
-    for (const [id, cfg] of Object.entries(preset.components) as [ComponentId, { slot: string | null }][]) {
-      updatedComponents[id] = { ...updatedComponents[id], slot: cfg.slot };
+  const applyPreset = (id: string) => {
+    const p = LAYOUT_PRESETS.find((x) => x.id === id);
+    if (!p) return;
+    const next = { ...ref.current };
+    if (p.grid) next.grid = { ...next.grid, ...p.grid };
+    const comps = { ...next.components };
+    for (const [cid, cfg] of Object.entries(p.components) as [ComponentId, { slot: string | null; order?: number }][]) {
+      comps[cid] = { ...comps[cid], slot: cfg.slot, order: cfg.order ?? 0 };
     }
-    next.components = updatedComponents;
+    next.components = comps;
     trySave(next);
   };
 
-  // Slots taken by OTHER components (for picker dim hints)
-  const takenSlotsFor = (excludeId: ComponentId) =>
-    COMPONENT_IDS.filter((id) => id !== excludeId)
-      .map((id) => settings.components[id].slot)
-      .filter((s): s is string => s !== null);
+  // Occupancy map: slot → count of OTHER components there (used by picker badge)
+  const occupancyFor = (excludeId: ComponentId): Record<string, number> => {
+    const map: Record<string, number> = {};
+    for (const id of COMPONENT_IDS) {
+      if (id === excludeId) continue;
+      const slot = settings.components[id].slot;
+      if (slot) map[slot] = (map[slot] ?? 0) + 1;
+    }
+    return map;
+  };
+
+  // Slot-mates for a given component (sorted by order)
+  const slotMates = (id: ComponentId) => {
+    const slot = settings.components[id].slot;
+    if (!slot) return [];
+    return COMPONENT_IDS
+      .filter((cid) => cid !== id && settings.components[cid].slot === slot)
+      .sort((a, b) => settings.components[a].order - settings.components[b].order);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -239,7 +203,7 @@ export function AppSettingsSheet({
         <SheetHeader className="p-6 pb-3">
           <SheetTitle>Settings</SheetTitle>
           <SheetDescription>
-            Drag components on the canvas, or configure them below.
+            Drag components on the canvas, or configure below. Multiple components can share a cell — they stack in order.
           </SheetDescription>
         </SheetHeader>
 
@@ -251,12 +215,8 @@ export function AppSettingsSheet({
               <h3 className="text-sm font-medium">Layout presets</h3>
               <div className="grid grid-cols-2 gap-2">
                 {LAYOUT_PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => applyPreset(p.id)}
-                    className="flex flex-col items-start gap-0.5 rounded-lg border border-border bg-background p-3 text-left hover:bg-accent hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
-                  >
+                  <button key={p.id} type="button" onClick={() => applyPreset(p.id)}
+                    className="flex flex-col items-start gap-0.5 rounded-lg border border-border bg-background p-3 text-left hover:bg-accent hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <span className="text-sm font-medium">{p.name}</span>
                     <span className="text-xs text-muted-foreground leading-tight">{p.description}</span>
                   </button>
@@ -266,18 +226,15 @@ export function AppSettingsSheet({
 
             <Separator />
 
-            {/* ── Grid ── */}
+            {/* ── Grid size ── */}
             <section className="space-y-2">
               <h3 className="text-sm font-medium">Grid size</h3>
               <div className="flex gap-3">
                 {(['cols', 'rows'] as const).map((k) => (
                   <div key={k} className="flex flex-1 flex-col gap-1">
                     <Label className="text-xs capitalize">{k}</Label>
-                    <Input
-                      type="number" min={1} max={8}
-                      value={settings.grid[k]}
-                      onChange={(e) => patchGrid({ [k]: Math.max(1, Math.min(8, Number(e.target.value) || 1)) })}
-                    />
+                    <Input type="number" min={1} max={8} value={settings.grid[k]}
+                      onChange={(e) => patchGrid({ [k]: Math.max(1, Math.min(8, Number(e.target.value) || 1)) })} />
                   </div>
                 ))}
               </div>
@@ -288,7 +245,7 @@ export function AppSettingsSheet({
             {/* ── Background ── */}
             <section className="space-y-3">
               <h3 className="text-sm font-medium">Background</h3>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label className="text-xs">Mode</Label>
                 <Select value={settings.background.mode} onValueChange={(v) => patchBg({ mode: v as AppSettings['background']['mode'] })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -302,32 +259,25 @@ export function AppSettingsSheet({
               </div>
 
               {settings.background.mode === 'url' && (
-                <div className="space-y-1">
-                  <Label className="text-xs">URL</Label>
-                  <Input value={settings.background.url} onChange={(e) => setSettings((s) => ({ ...s, background: { ...s.background, url: e.target.value } }))} placeholder="https://..." />
+                <div className="space-y-1"><Label className="text-xs">URL</Label>
+                  <Input value={settings.background.url} placeholder="https://…"
+                    onChange={(e) => setSettings((s) => ({ ...s, background: { ...s.background, url: e.target.value } }))} />
                 </div>
               )}
               {settings.background.mode === 'upload' && (
-                <div className="space-y-1">
-                  <Label className="text-xs">File</Label>
+                <div className="space-y-1"><Label className="text-xs">File</Label>
                   <Input type="file" accept="image/*" onChange={(e) => onUpload(e.target.files?.[0])} />
                 </div>
               )}
               {settings.background.mode === 'category' && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Category tag</Label>
-                  <Input value={settings.background.category} onChange={(e) => setSettings((s) => ({ ...s, background: { ...s.background, category: e.target.value } }))} placeholder="nature, city, cat…" />
+                <div className="space-y-1"><Label className="text-xs">Category tag</Label>
+                  <Input value={settings.background.category} placeholder="nature, city, cat…"
+                    onChange={(e) => setSettings((s) => ({ ...s, background: { ...s.background, category: e.target.value } }))} />
                 </div>
               )}
-
               {settings.background.mode !== 'none' && (
-                <SliderRow
-                  label="Overlay opacity"
-                  value={Math.round(settings.background.opacity * 100)}
-                  min={0} max={100}
-                  unit="%"
-                  onChange={(v) => patchBg({ opacity: v / 100 })}
-                />
+                <SliderRow label="Overlay opacity" value={Math.round(settings.background.opacity * 100)}
+                  min={0} max={100} unit="%" onChange={(v) => patchBg({ opacity: v / 100 })} />
               )}
             </section>
 
@@ -337,25 +287,28 @@ export function AppSettingsSheet({
             <section className="space-y-2">
               <h3 className="text-sm font-medium">Components</h3>
               <p className="text-xs text-muted-foreground">
-                Each component occupies its own slot — dragging onto an occupied cell swaps them.
+                Dropping a component onto an occupied cell stacks them — hover the component in the canvas to reorder with the ↑↓ arrows.
               </p>
 
               <Accordion type="multiple" className="space-y-1">
                 {COMPONENT_IDS.map((id) => {
                   const cfg = settings.components[id];
-                  const taken = takenSlotsFor(id);
+                  const occ = occupancyFor(id);
+                  const mates = slotMates(id);
+                  const slotDir = cfg.slot ? (settings.slotDirections[cfg.slot] ?? 'column') : 'column';
 
                   return (
                     <AccordionItem key={id} value={id} className="rounded-lg border border-border/70 px-3">
                       <AccordionTrigger className="py-2 text-sm hover:no-underline">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{COMPONENT_LABELS[id]}</span>
-                          <span className={cn(
-                            'text-[10px] px-1.5 py-0.5 rounded leading-none',
-                            cfg.slot !== null ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                          )}>
+                          <span className={cn('text-[10px] px-1.5 py-0.5 rounded leading-none',
+                            cfg.slot !== null ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
                             {cfg.slot ?? 'hidden'}
                           </span>
+                          {mates.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground">+{mates.length} shared</span>
+                          )}
                         </div>
                       </AccordionTrigger>
 
@@ -369,24 +322,44 @@ export function AppSettingsSheet({
                             gridCols={settings.grid.cols}
                             gridRows={settings.grid.rows}
                             onChange={(slot) => moveComponent(id, slot)}
-                            takenSlots={taken}
+                            occupancy={occ}
                           />
                         </div>
+
+                        {/* Stack direction for this slot (visible when slot is set) */}
+                        {cfg.slot && (
+                          <Row label="Stack direction">
+                            {(['column', 'row'] as const).map((d) => (
+                              <button key={d} type="button"
+                                onClick={() => setSlotDirection(cfg.slot!, d)}
+                                className={cn('rounded border px-2 py-0.5 text-xs capitalize transition-colors',
+                                  slotDir === d
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-border bg-background text-muted-foreground hover:border-primary/50')}>
+                                {d === 'column' ? 'Top → bottom' : 'Left → right'}
+                              </button>
+                            ))}
+                          </Row>
+                        )}
+
+                        {/* Slot-mates info */}
+                        {mates.length > 0 && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Sharing slot with: {mates.map((m) => COMPONENT_LABELS[m]).join(', ')}
+                          </p>
+                        )}
+
+                        <Separator className="my-1" />
 
                         {/* Alignment */}
                         <Row label="Alignment">
                           {(['left', 'center', 'right'] as const).map((a) => (
-                            <button
-                              key={a}
-                              type="button"
+                            <button key={a} type="button"
                               onClick={() => updateComponent(id, { align: a })}
-                              className={cn(
-                                'rounded border px-2 py-0.5 text-xs transition-colors capitalize',
+                              className={cn('rounded border px-2 py-0.5 text-xs capitalize transition-colors',
                                 cfg.align === a
                                   ? 'border-primary bg-primary/10 text-primary'
-                                  : 'border-border bg-background text-muted-foreground hover:border-primary/50'
-                              )}
-                            >
+                                  : 'border-border bg-background text-muted-foreground hover:border-primary/50')}>
                               {a}
                             </button>
                           ))}
@@ -407,134 +380,77 @@ export function AppSettingsSheet({
 
                         {/* Text color */}
                         <Row label="Text color">
-                          <ColorSwatch
-                            color={cfg.color}
-                            allowAuto
-                            autoActive={cfg.color === 'auto'}
+                          <ColorSwatch color={cfg.color} allowAuto autoActive={cfg.color === 'auto'}
                             onAuto={() => updateComponent(id, { color: 'auto' })}
-                            onChange={(c) => updateComponent(id, { color: c })}
-                          />
+                            onChange={(c) => updateComponent(id, { color: c })} />
                         </Row>
 
                         {/* Font */}
-                        <Row label="Font family">
+                        <Row label="Font">
                           <Select
                             value={FONT_FAMILIES.find((f) => f.value === cfg.fontFamily) ? cfg.fontFamily : 'custom'}
-                            onValueChange={(v) => {
-                              if (v !== 'custom') updateComponent(id, { fontFamily: v });
-                            }}
-                          >
+                            onValueChange={(v) => { if (v !== 'custom') updateComponent(id, { fontFamily: v }); }}>
                             <SelectTrigger className="h-7 w-[160px] text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              {FONT_FAMILIES.map((f) => (
-                                <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                              ))}
+                              {FONT_FAMILIES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </Row>
 
-                        {(cfg.fontFamily === 'custom' || !FONT_FAMILIES.find((f) => f.value === cfg.fontFamily)) && (
+                        {(!FONT_FAMILIES.find((f) => f.value === cfg.fontFamily) || cfg.fontFamily === 'custom') && (
                           <div className="space-y-1">
-                            <Label className="text-xs">Custom font-family</Label>
-                            <Input
-                              className="h-7 text-xs"
+                            <Label className="text-xs">Custom font-family value</Label>
+                            <Input className="h-7 text-xs"
                               value={cfg.fontFamily === 'inherit' ? '' : cfg.fontFamily}
-                              placeholder="e.g. 'Playfair Display', serif"
-                              onChange={(e) => updateComponent(id, { fontFamily: e.target.value || 'inherit' })}
-                            />
+                              placeholder="'Playfair Display', serif"
+                              onChange={(e) => updateComponent(id, { fontFamily: e.target.value || 'inherit' })} />
                           </div>
                         )}
 
-                        <SliderRow
-                          label="Font weight"
-                          value={cfg.fontWeight}
-                          min={100} max={900} step={100}
-                          onChange={(v) => updateComponent(id, { fontWeight: v })}
-                        />
+                        <SliderRow label="Font weight" value={cfg.fontWeight} min={100} max={900} step={100}
+                          onChange={(v) => updateComponent(id, { fontWeight: v })} />
 
                         <Row label="Italic">
-                          <Switch
-                            checked={cfg.italic}
-                            onCheckedChange={(v) => updateComponent(id, { italic: v })}
-                          />
+                          <Switch checked={cfg.italic} onCheckedChange={(v) => updateComponent(id, { italic: v })} />
                         </Row>
 
-                        <SliderRow
-                          label="Letter spacing"
-                          value={cfg.letterSpacing}
-                          min={-5} max={20} step={0.5}
-                          unit="px"
-                          onChange={(v) => updateComponent(id, { letterSpacing: v })}
-                        />
+                        <SliderRow label="Letter spacing" value={cfg.letterSpacing} min={-5} max={20} step={0.5} unit="px"
+                          onChange={(v) => updateComponent(id, { letterSpacing: v })} />
 
                         <Separator className="my-1" />
 
                         {/* Box */}
-                        <Row label="Background">
-                          <ColorSwatch
-                            color={cfg.bgColor === 'transparent' ? '#ffffff' : cfg.bgColor}
-                            allowAuto
-                            autoActive={cfg.bgColor === 'transparent'}
+                        <Row label="Background color">
+                          <ColorSwatch color={cfg.bgColor === 'transparent' ? '#ffffff' : cfg.bgColor}
+                            allowAuto autoActive={cfg.bgColor === 'transparent'}
                             onAuto={() => updateComponent(id, { bgColor: 'transparent' })}
-                            onChange={(c) => updateComponent(id, { bgColor: c })}
-                          />
+                            onChange={(c) => updateComponent(id, { bgColor: c })} />
                         </Row>
 
                         <Row label="Border color">
-                          <ColorSwatch
-                            color={cfg.borderColor === 'transparent' ? '#888888' : cfg.borderColor}
-                            allowAuto
-                            autoActive={cfg.borderColor === 'transparent'}
+                          <ColorSwatch color={cfg.borderColor === 'transparent' ? '#888888' : cfg.borderColor}
+                            allowAuto autoActive={cfg.borderColor === 'transparent'}
                             onAuto={() => updateComponent(id, { borderColor: 'transparent' })}
-                            onChange={(c) => updateComponent(id, { borderColor: c })}
-                          />
+                            onChange={(c) => updateComponent(id, { borderColor: c })} />
                         </Row>
 
-                        <SliderRow
-                          label="Border width"
-                          value={cfg.borderWidth}
-                          min={0} max={20}
-                          unit="px"
-                          onChange={(v) => updateComponent(id, { borderWidth: v })}
-                        />
+                        <SliderRow label="Border width" value={cfg.borderWidth} min={0} max={20} unit="px"
+                          onChange={(v) => updateComponent(id, { borderWidth: v })} />
 
-                        <SliderRow
-                          label="Border radius"
-                          value={cfg.borderRadius}
-                          min={0} max={100}
-                          unit="px"
-                          onChange={(v) => updateComponent(id, { borderRadius: v })}
-                        />
+                        <SliderRow label="Border radius" value={cfg.borderRadius} min={0} max={100} unit="px"
+                          onChange={(v) => updateComponent(id, { borderRadius: v })} />
 
-                        <SliderRow
-                          label="Padding (horizontal)"
-                          value={cfg.paddingX}
-                          min={0} max={120}
-                          unit="px"
-                          onChange={(v) => updateComponent(id, { paddingX: v })}
-                        />
+                        <SliderRow label="Horizontal padding" value={cfg.paddingX} min={0} max={120} unit="px"
+                          onChange={(v) => updateComponent(id, { paddingX: v })} />
 
-                        <SliderRow
-                          label="Padding (vertical)"
-                          value={cfg.paddingY}
-                          min={0} max={120}
-                          unit="px"
-                          onChange={(v) => updateComponent(id, { paddingY: v })}
-                        />
+                        <SliderRow label="Vertical padding" value={cfg.paddingY} min={0} max={120} unit="px"
+                          onChange={(v) => updateComponent(id, { paddingY: v })} />
 
-                        <SliderRow
-                          label="Opacity"
-                          value={Math.round(cfg.opacity * 100)}
-                          min={0} max={100}
-                          unit="%"
-                          onChange={(v) => updateComponent(id, { opacity: v / 100 })}
-                        />
+                        <SliderRow label="Opacity" value={Math.round(cfg.opacity * 100)} min={0} max={100} unit="%"
+                          onChange={(v) => updateComponent(id, { opacity: v / 100 })} />
 
                         <Row label="Shadow">
-                          <Switch
-                            checked={cfg.shadow}
-                            onCheckedChange={(v) => updateComponent(id, { shadow: v })}
-                          />
+                          <Switch checked={cfg.shadow} onCheckedChange={(v) => updateComponent(id, { shadow: v })} />
                         </Row>
 
                       </AccordionContent>
@@ -554,13 +470,10 @@ export function AppSettingsSheet({
                 <Select value={settings.heroModeKind} onValueChange={(v) => patch('heroModeKind', v as AppSettings['heroModeKind'])}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {HERO_MODE_KINDS.map((k) => (
-                      <SelectItem key={k} value={k}>{HERO_MODE_LABELS[k]}</SelectItem>
-                    ))}
+                    {HERO_MODE_KINDS.map((k) => <SelectItem key={k} value={k}>{HERO_MODE_LABELS[k]}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-
               {settings.heroModeKind === 'digital' && (
                 <>
                   <div className="space-y-1">
@@ -579,15 +492,15 @@ export function AppSettingsSheet({
                   </div>
                 </>
               )}
-
               {settings.heroModeKind === 'custom' && (
                 <div className="space-y-1">
                   <Label className="text-xs">Template</Label>
-                  <Input value={settings.customHeroTemplate} onChange={(e) => setSettings((s) => ({ ...s, customHeroTemplate: e.target.value }))} placeholder="{time} — {date}" />
+                  <Input value={settings.customHeroTemplate}
+                    onChange={(e) => setSettings((s) => ({ ...s, customHeroTemplate: e.target.value }))}
+                    placeholder="{time} — {date}" />
                   <p className="text-xs text-muted-foreground">Use {'{time}'} and {'{date}'}.</p>
                 </div>
               )}
-
               <div className="flex items-center justify-between">
                 <Label htmlFor="dateunder" className="text-xs">Show date below clock</Label>
                 <Switch id="dateunder" checked={settings.showDateUnderHero} onCheckedChange={(v) => patch('showDateUnderHero', v)} />
@@ -602,31 +515,23 @@ export function AppSettingsSheet({
               <p className="text-xs text-muted-foreground">Leave blank for defaults.</p>
               <div className="grid gap-2">
                 {[
-                  { key: 'study'              as const, label: 'Study',              placeholder: 'Study' },
-                  { key: 'break'              as const, label: 'Break',              placeholder: 'Break' },
-                  { key: 'sessions'           as const, label: 'Sessions',           placeholder: 'Sessions' },
-                  { key: 'timerTitleOverride' as const, label: 'Timer title',        placeholder: 'Auto (session context)' },
-                  { key: 'heroFooterOverride' as const, label: 'Clock footer line',  placeholder: 'Optional' },
+                  { key: 'study'              as const, label: 'Study',             placeholder: 'Study' },
+                  { key: 'break'              as const, label: 'Break',             placeholder: 'Break' },
+                  { key: 'sessions'           as const, label: 'Sessions',          placeholder: 'Sessions' },
+                  { key: 'timerTitleOverride' as const, label: 'Timer title',       placeholder: 'Auto (session context)' },
+                  { key: 'heroFooterOverride' as const, label: 'Clock footer line', placeholder: 'Optional' },
                 ].map(({ key, label, placeholder }) => (
                   <div key={key} className="flex items-center gap-2">
                     <Label className="w-28 shrink-0 text-xs">{label}</Label>
-                    <Input
-                      className="h-7 text-xs"
-                      value={settings.labels[key]}
-                      onChange={(e) => patchLabels({ [key]: e.target.value })}
-                      placeholder={placeholder}
-                    />
+                    <Input className="h-7 text-xs" value={settings.labels[key]}
+                      onChange={(e) => patchLabels({ [key]: e.target.value })} placeholder={placeholder} />
                   </div>
                 ))}
               </div>
             </section>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => { resetToDefaults(); toast.message('Reset to defaults'); }}
-            >
+            <Button type="button" variant="outline" className="w-full"
+              onClick={() => { resetToDefaults(); toast.message('Reset to defaults'); }}>
               Reset all to defaults
             </Button>
           </div>
