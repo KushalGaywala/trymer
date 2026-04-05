@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useCallback, useRef } from 'react';
+import { type ReactNode, type CSSProperties, useState, useCallback, useRef } from 'react';
 import { type ComponentId, gridSlotId } from '@/lib/app-settings';
 import { cn } from '@/lib/utils';
 import { GripVertical } from 'lucide-react';
@@ -6,14 +6,23 @@ import { GripVertical } from 'lucide-react';
 export type ComponentEntry = {
   id: ComponentId;
   node: ReactNode;
+  /** Pre-built inline style to apply around the component (box, font, etc.) */
+  wrapperStyle?: CSSProperties;
+  /** Flex alignment: affects how the wrapper sits in its cell column */
+  align?: 'left' | 'center' | 'right';
 };
 
 type Props = {
   cols: number;
   rows: number;
-  /** Maps slot id → array of component entries that live in that slot */
   slotMap: Record<string, ComponentEntry[]>;
   onMove: (id: ComponentId, newSlot: string) => void;
+};
+
+const alignClass: Record<'left' | 'center' | 'right', string> = {
+  left:   'items-start text-left  self-start',
+  center: 'items-center text-center',
+  right:  'items-end   text-right self-end',
 };
 
 function DraggableItem({
@@ -25,6 +34,8 @@ function DraggableItem({
   onDragStart: (id: ComponentId) => void;
   onDragEnd: () => void;
 }) {
+  const align = entry.align ?? 'center';
+
   return (
     <div
       draggable
@@ -34,9 +45,13 @@ function DraggableItem({
         onDragStart(entry.id);
       }}
       onDragEnd={onDragEnd}
-      className="group relative w-full cursor-grab active:cursor-grabbing active:opacity-50"
+      style={entry.wrapperStyle}
+      className={cn(
+        'group relative w-full cursor-grab active:cursor-grabbing active:opacity-50',
+        'flex flex-col',
+        alignClass[align]
+      )}
     >
-      {/* Drag handle hint */}
       <div className="pointer-events-none absolute -right-1 -top-1 z-10 opacity-0 transition-opacity group-hover:opacity-40">
         <GripVertical className="h-3 w-3 text-current" />
       </div>
@@ -48,35 +63,23 @@ function DraggableItem({
 export function TimerGrid({ cols, rows, slotMap, onMove }: Props) {
   const [draggedId, setDraggedId] = useState<ComponentId | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
-  // Debounce dragLeave to avoid flicker when moving between child elements
   const dragLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleDragStart = useCallback((id: ComponentId) => {
-    setDraggedId(id);
-  }, []);
-
+  const handleDragStart = useCallback((id: ComponentId) => setDraggedId(id), []);
   const handleDragEnd = useCallback(() => {
     setDraggedId(null);
     setDragOverSlot(null);
   }, []);
 
-  const handleDragOver = useCallback(
-    (e: React.DragEvent<HTMLDivElement>, slot: string) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (dragLeaveTimer.current) {
-        clearTimeout(dragLeaveTimer.current);
-        dragLeaveTimer.current = null;
-      }
-      setDragOverSlot(slot);
-    },
-    []
-  );
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>, slot: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragLeaveTimer.current) { clearTimeout(dragLeaveTimer.current); dragLeaveTimer.current = null; }
+    setDragOverSlot(slot);
+  }, []);
 
   const handleDragLeave = useCallback(() => {
-    dragLeaveTimer.current = setTimeout(() => {
-      setDragOverSlot(null);
-    }, 50);
+    dragLeaveTimer.current = setTimeout(() => setDragOverSlot(null), 60);
   }, []);
 
   const handleDrop = useCallback(
