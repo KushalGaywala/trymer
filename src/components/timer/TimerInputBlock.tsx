@@ -6,7 +6,7 @@ import { sizeClass, type TextSize } from '@/lib/app-settings';
 type Align = 'left' | 'center' | 'right';
 
 type Props = {
-  inputType: 'study' | 'break' | 'sessions';
+  inputType: 'focus' | 'break' | 'sessions';
   value: number;
   isRunning: boolean;
   onChange: (n: number) => void;
@@ -15,7 +15,7 @@ type Props = {
   align?: Align;
 };
 
-const PLACEHOLDERS = { study: 'min', break: 'min', sessions: 'count' } as const;
+const PLACEHOLDERS = { focus: 'min', break: 'min', sessions: 'count' } as const;
 
 const justifyClass: Record<Align, string> = {
   left:   'justify-start',

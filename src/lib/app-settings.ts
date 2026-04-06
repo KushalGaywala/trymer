@@ -1,12 +1,10 @@
 import { z } from 'zod';
 
-export const STORAGE_KEY = 'trymer-settings-v4';
-
-export type GridSlot = string;
+export const STORAGE_KEY = 'trymer-settings-v5';
 
 export const COMPONENT_IDS = [
   'timerFace',
-  'timerStudyInput',
+  'timerFocusInput',
   'timerBreakInput',
   'timerSessionsInput',
   'timerStartBtn',
@@ -42,10 +40,12 @@ export const FONT_FAMILIES = [
 // ── Component config ─────────────────────────────────────────────────────────
 
 const componentConfigSchema = z.object({
-  // Layout
-  slot:  z.string().nullable(),
-  order: z.number().default(0),          // sort order within a shared slot
-  align: z.enum(['left', 'center', 'right']).default('center'),
+  // Layout (% of canvas width/height, center-anchored)
+  x:       z.number().min(0).max(100).default(50),
+  y:       z.number().min(0).max(100).default(50),
+  zIndex:  z.number().int().default(0),
+  hidden:  z.boolean().default(false),
+  align:   z.enum(['left', 'center', 'right']).default('center'),
 
   // Text
   color:         z.string().default('auto'),
@@ -68,17 +68,31 @@ const componentConfigSchema = z.object({
 export type ComponentConfig = z.infer<typeof componentConfigSchema>;
 
 const base = {
-  order: 0, align: 'center' as const, color: 'auto',
-  size: 'normal' as const, fontFamily: 'inherit', fontWeight: 400,
-  italic: false, letterSpacing: 0, bgColor: 'transparent',
-  borderColor: 'transparent', borderWidth: 0, borderRadius: 0,
-  paddingX: 8, paddingY: 4, opacity: 1, shadow: false,
+  x: 50,
+  y: 50,
+  zIndex: 0,
+  hidden: false,
+  align: 'center' as const,
+  color: 'auto',
+  size: 'normal' as const,
+  fontFamily: 'inherit',
+  fontWeight: 400,
+  italic: false,
+  letterSpacing: 0,
+  bgColor: 'transparent',
+  borderColor: 'transparent',
+  borderWidth: 0,
+  borderRadius: 0,
+  paddingX: 8,
+  paddingY: 4,
+  opacity: 1,
+  shadow: false,
 };
 
 const componentsSchema = z
   .object({
     timerFace:          componentConfigSchema,
-    timerStudyInput:    componentConfigSchema,
+    timerFocusInput:    componentConfigSchema,
     timerBreakInput:    componentConfigSchema,
     timerSessionsInput: componentConfigSchema,
     timerStartBtn:      componentConfigSchema,
@@ -87,29 +101,15 @@ const componentsSchema = z
     dateLine:           componentConfigSchema,
   })
   .default({
-    timerFace:          { ...base, slot: 'r1c1' },
-    timerStudyInput:    { ...base, slot: 'r0c1' },
-    timerBreakInput:    { ...base, slot: 'r0c2' },
-    timerSessionsInput: { ...base, slot: 'r0c0' },
-    timerStartBtn:      { ...base, slot: 'r2c0' },
-    timerResetBtn:      { ...base, slot: 'r2c2' },
-    clock:              { ...base, slot: 'r2c1' },
-    dateLine:           { ...base, slot: null   },
+    timerFace:          { ...base, x: 50, y: 50, zIndex: 4 },
+    timerFocusInput:    { ...base, x: 50, y: 16.67, zIndex: 1 },
+    timerBreakInput:    { ...base, x: 83.33, y: 16.67, zIndex: 2 },
+    timerSessionsInput: { ...base, x: 16.67, y: 16.67, zIndex: 0 },
+    timerStartBtn:      { ...base, x: 16.67, y: 83.33, zIndex: 5 },
+    timerResetBtn:      { ...base, x: 83.33, y: 83.33, zIndex: 7 },
+    clock:              { ...base, x: 50, y: 83.33, zIndex: 6 },
+    dateLine:           { ...base, hidden: true, x: 50, y: 92, zIndex: 3 },
   });
-
-// ── Grid ─────────────────────────────────────────────────────────────────────
-
-const gridSchema = z
-  .object({
-    cols: z.number().int().min(1).max(8).default(3),
-    rows: z.number().int().min(1).max(8).default(3),
-  })
-  .default({ cols: 3, rows: 3 });
-
-// Per-slot stack direction: 'column' = top→bottom, 'row' = left→right
-const slotDirectionsSchema = z
-  .record(z.string(), z.enum(['column', 'row']))
-  .default({});
 
 // ── Background ───────────────────────────────────────────────────────────────
 
@@ -127,22 +127,20 @@ const backgroundSchema = z
 
 const labelsSchema = z
   .object({
-    study:              z.string(),
+    focus:              z.string(),
     break:              z.string(),
     sessions:           z.string(),
     timerTitleOverride: z.string(),
     heroFooterOverride: z.string(),
   })
-  .default({ study: '', break: '', sessions: '', timerTitleOverride: '', heroFooterOverride: '' });
+  .default({ focus: '', break: '', sessions: '', timerTitleOverride: '', heroFooterOverride: '' });
 
 // ── Root ─────────────────────────────────────────────────────────────────────
 
 export const appSettingsSchema = z.object({
-  grid:           gridSchema,
-  slotDirections: slotDirectionsSchema,
-  components:     componentsSchema,
-  background:     backgroundSchema,
-  labels:         labelsSchema,
+  components:           componentsSchema,
+  background:           backgroundSchema,
+  labels:               labelsSchema,
   heroModeKind:         z.enum(HERO_MODE_KINDS).default('digital'),
   digitalFormat:        z.enum(['12h', '24h']).default('24h'),
   digitalShowSeconds:   z.boolean().default(true),
@@ -154,6 +152,7 @@ export type AppSettings = z.infer<typeof appSettingsSchema>;
 
 export const defaultAppSettings: AppSettings = appSettingsSchema.parse({});
 
+/** Parse stored JSON; invalid or partial data falls back to defaults. */
 export function mergeWithDefaults(partial: unknown): AppSettings {
   const parsed = appSettingsSchema.safeParse(partial);
   return parsed.success ? parsed.data : defaultAppSettings;
@@ -171,15 +170,6 @@ export function resolveBackgroundImageUrl(settings: AppSettings): string | null 
     return `https://loremflickr.com/1920/1080/${encodeURIComponent(tag)}`;
   }
   return null;
-}
-
-export function gridSlotId(row: number, col: number): string {
-  return `r${row}c${col}`;
-}
-
-export function parseGridSlot(slot: string): { row: number; col: number } | null {
-  const m = slot.match(/^r(\d+)c(\d+)$/);
-  return m ? { row: parseInt(m[1]), col: parseInt(m[2]) } : null;
 }
 
 /** Convert a ComponentConfig's style fields into an inline React style object. */
@@ -212,79 +202,79 @@ export function sizeClass(size: TextSize, role: 'body' | 'title' | 'hero' | 'ico
   return map[size][role];
 }
 
+/** Clamp canvas X/Y position (percent) so widgets stay reachable near edges. */
+export const LAYOUT_XY_CLAMP = { min: 2, max: 98 } as const;
+
 // ── Layout presets ───────────────────────────────────────────────────────────
+
+export type LayoutPresetPiece = { x: number; y: number; zIndex: number; hidden?: boolean };
 
 export type LayoutPreset = {
   id: string;
   name: string;
   description: string;
-  components: Partial<Record<ComponentId, { slot: string | null; order?: number }>>;
-  grid?: { cols: number; rows: number };
+  components: Partial<Record<ComponentId, LayoutPresetPiece>>;
 };
 
 export const LAYOUT_PRESETS: LayoutPreset[] = [
   {
     id: 'timer-clock',
     name: 'Timer + Clock',
-    description: 'Inputs spread top, timer center, clock & controls bottom',
+    description: 'Inputs along the top, timer center, clock and controls along the bottom',
     components: {
-      timerSessionsInput: { slot: 'r0c0', order: 0 },
-      timerStudyInput:    { slot: 'r0c1', order: 0 },
-      timerBreakInput:    { slot: 'r0c2', order: 0 },
-      timerFace:          { slot: 'r1c1', order: 0 },
-      timerStartBtn:      { slot: 'r2c0', order: 0 },
-      clock:              { slot: 'r2c1', order: 0 },
-      timerResetBtn:      { slot: 'r2c2', order: 0 },
-      dateLine:           { slot: null   },
+      timerSessionsInput: { x: 16.67, y: 16.67, zIndex: 0 },
+      timerFocusInput:    { x: 50, y: 16.67, zIndex: 1 },
+      timerBreakInput:    { x: 83.33, y: 16.67, zIndex: 2 },
+      timerFace:          { x: 50, y: 50, zIndex: 4 },
+      timerStartBtn:      { x: 16.67, y: 83.33, zIndex: 5 },
+      clock:              { x: 50, y: 83.33, zIndex: 6 },
+      timerResetBtn:      { x: 83.33, y: 83.33, zIndex: 7 },
+      dateLine:           { hidden: true, x: 50, y: 92, zIndex: 3 },
     },
-    grid: { cols: 3, rows: 3 },
   },
   {
     id: 'stacked-center',
     name: 'Stacked center',
-    description: 'Timer + clock + inputs all stacked in one column',
+    description: 'All main controls stacked vertically in the center',
     components: {
-      timerStudyInput:    { slot: 'r1c1', order: 0 },
-      timerBreakInput:    { slot: 'r1c1', order: 1 },
-      timerSessionsInput: { slot: 'r1c1', order: 2 },
-      timerFace:          { slot: 'r1c1', order: 3 },
-      timerStartBtn:      { slot: 'r1c1', order: 4 },
-      timerResetBtn:      { slot: 'r1c1', order: 5 },
-      clock:              { slot: 'r2c1', order: 0 },
-      dateLine:           { slot: null   },
+      timerFocusInput:    { x: 50, y: 30, zIndex: 0 },
+      timerBreakInput:    { x: 50, y: 40, zIndex: 1 },
+      timerSessionsInput: { x: 50, y: 50, zIndex: 2 },
+      timerFace:          { x: 50, y: 58, zIndex: 3 },
+      timerStartBtn:      { x: 50, y: 68, zIndex: 4 },
+      timerResetBtn:      { x: 50, y: 76, zIndex: 5 },
+      clock:              { x: 50, y: 86, zIndex: 6 },
+      dateLine:           { hidden: true, x: 50, y: 94, zIndex: 7 },
     },
-    grid: { cols: 3, rows: 3 },
   },
   {
     id: 'clock-only',
-    name: 'Clock Only',
-    description: 'Just the clock, centered',
+    name: 'Clock only',
+    description: 'Just the clock and date, centered',
     components: {
-      timerStudyInput:    { slot: null },
-      timerBreakInput:    { slot: null },
-      timerSessionsInput: { slot: null },
-      timerFace:          { slot: null },
-      timerStartBtn:      { slot: null },
-      clock:              { slot: 'r1c1', order: 0 },
-      timerResetBtn:      { slot: null },
-      dateLine:           { slot: 'r2c1', order: 0 },
+      timerFocusInput:    { hidden: true, x: 50, y: 30, zIndex: 0 },
+      timerBreakInput:    { hidden: true, x: 50, y: 40, zIndex: 1 },
+      timerSessionsInput: { hidden: true, x: 50, y: 50, zIndex: 2 },
+      timerFace:          { hidden: true, x: 50, y: 50, zIndex: 3 },
+      timerStartBtn:      { hidden: true, x: 50, y: 70, zIndex: 4 },
+      timerResetBtn:      { hidden: true, x: 50, y: 80, zIndex: 5 },
+      clock:              { x: 50, y: 45, zIndex: 10 },
+      dateLine:           { x: 50, y: 58, zIndex: 9 },
     },
-    grid: { cols: 3, rows: 3 },
   },
   {
     id: 'full-spread',
-    name: 'Full Spread',
-    description: 'Every component in its own cell',
+    name: 'Full spread',
+    description: 'Each widget in its own area across the canvas',
     components: {
-      timerStudyInput:    { slot: 'r0c0', order: 0 },
-      timerBreakInput:    { slot: 'r0c1', order: 0 },
-      timerSessionsInput: { slot: 'r0c2', order: 0 },
-      timerFace:          { slot: 'r1c1', order: 0 },
-      timerStartBtn:      { slot: 'r1c0', order: 0 },
-      timerResetBtn:      { slot: 'r1c2', order: 0 },
-      clock:              { slot: 'r2c1', order: 0 },
-      dateLine:           { slot: 'r2c2', order: 0 },
+      timerFocusInput:    { x: 16.67, y: 16.67, zIndex: 0 },
+      timerBreakInput:    { x: 50, y: 16.67, zIndex: 1 },
+      timerSessionsInput: { x: 83.33, y: 16.67, zIndex: 2 },
+      timerFace:          { x: 50, y: 50, zIndex: 3 },
+      timerStartBtn:      { x: 16.67, y: 50, zIndex: 4 },
+      timerResetBtn:      { x: 83.33, y: 50, zIndex: 5 },
+      clock:              { x: 50, y: 83.33, zIndex: 6 },
+      dateLine:           { x: 83.33, y: 83.33, zIndex: 7 },
     },
-    grid: { cols: 3, rows: 3 },
   },
 ];
