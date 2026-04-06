@@ -36,13 +36,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { GridPositionPicker } from '@/components/settings/GridPositionPicker';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 const COMPONENT_LABELS: Record<ComponentId, string> = {
   timerFace:          'Timer display',
-  timerStudyInput:    'Study time input',
+  timerFocusInput:    'Focus time input',
   timerBreakInput:    'Break time input',
   timerSessionsInput: 'Sessions input',
   timerStartBtn:      'Start / Stop button',
@@ -67,10 +66,11 @@ type Props = {
   settings: AppSettings;
   setSettings: Dispatch<SetStateAction<AppSettings>>;
   updateComponent: (id: ComponentId, patch: Partial<ComponentConfig>) => void;
-  moveComponent: (id: ComponentId, slot: string | null) => void;
-  setSlotDirection: (slot: string, dir: 'column' | 'row') => void;
   resetToDefaults: () => void;
 };
+
+type BackgroundPatch = Partial<AppSettings['background']>;
+type LabelsPatch = Partial<AppSettings['labels']>;
 
 // ── tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ function SliderRow({ label, value, min, max, step = 1, unit = '', onChange }: {
 
 export function AppSettingsSheet({
   open, onOpenChange, settings, setSettings,
-  updateComponent, moveComponent, setSlotDirection, resetToDefaults,
+  updateComponent, resetToDefaults,
 }: Props) {
   const ref = useRef(settings);
   ref.current = settings;
@@ -140,16 +140,14 @@ export function AppSettingsSheet({
     catch { toast.error('Could not save — storage may be full.'); }
   };
 
-  const patch = <K extends keyof AppSettings>(key: K, val: AppSettings[K]) =>
+  function patchSetting<K extends keyof AppSettings>(key: K, val: AppSettings[K]) {
     trySave({ ...ref.current, [key]: val });
+  }
 
-  const patchBg = (p: Partial<AppSettings['background']>) =>
+  const patchBg = (p: BackgroundPatch) =>
     trySave({ ...ref.current, background: { ...ref.current.background, ...p } });
 
-  const patchGrid = (p: Partial<AppSettings['grid']>) =>
-    trySave({ ...ref.current, grid: { ...ref.current.grid, ...p } });
-
-  const patchLabels = (p: Partial<AppSettings['labels']>) =>
+  const patchLabels = (p: LabelsPatch) =>
     setSettings((s) => ({ ...s, labels: { ...s.labels, ...p } }));
 
   const onUpload = (file?: File) => {
@@ -164,37 +162,23 @@ export function AppSettingsSheet({
     reader.readAsDataURL(file);
   };
 
-  const applyPreset = (id: string) => {
-    const p = LAYOUT_PRESETS.find((x) => x.id === id);
+  const applyPreset = (presetId: string) => {
+    const p = LAYOUT_PRESETS.find((x) => x.id === presetId);
     if (!p) return;
     const next = { ...ref.current };
-    if (p.grid) next.grid = { ...next.grid, ...p.grid };
     const comps = { ...next.components };
-    for (const [cid, cfg] of Object.entries(p.components) as [ComponentId, { slot: string | null; order?: number }][]) {
-      comps[cid] = { ...comps[cid], slot: cfg.slot, order: cfg.order ?? 0 };
+    for (const [cid, piece] of Object.entries(p.components)) {
+      const id = cid as ComponentId;
+      comps[id] = {
+        ...comps[id],
+        x: piece.x,
+        y: piece.y,
+        zIndex: piece.zIndex,
+        hidden: piece.hidden ?? false,
+      };
     }
     next.components = comps;
     trySave(next);
-  };
-
-  // Occupancy map: slot → count of OTHER components there (used by picker badge)
-  const occupancyFor = (excludeId: ComponentId): Record<string, number> => {
-    const map: Record<string, number> = {};
-    for (const id of COMPONENT_IDS) {
-      if (id === excludeId) continue;
-      const slot = settings.components[id].slot;
-      if (slot) map[slot] = (map[slot] ?? 0) + 1;
-    }
-    return map;
-  };
-
-  // Slot-mates for a given component (sorted by order)
-  const slotMates = (id: ComponentId) => {
-    const slot = settings.components[id].slot;
-    if (!slot) return [];
-    return COMPONENT_IDS
-      .filter((cid) => cid !== id && settings.components[cid].slot === slot)
-      .sort((a, b) => settings.components[a].order - settings.components[b].order);
   };
 
   return (
@@ -203,7 +187,7 @@ export function AppSettingsSheet({
         <SheetHeader className="p-6 pb-3">
           <SheetTitle>Settings</SheetTitle>
           <SheetDescription>
-            Drag components on the canvas, or configure below. Multiple components can share a cell — they stack in order.
+            Drag blocks on the canvas in edit layout mode, or set position and visibility below.
           </SheetDescription>
         </SheetHeader>
 
@@ -214,28 +198,12 @@ export function AppSettingsSheet({
             <section className="space-y-2">
               <h3 className="text-sm font-medium">Layout presets</h3>
               <div className="grid grid-cols-2 gap-2">
-                {LAYOUT_PRESETS.map((p) => (
-                  <button key={p.id} type="button" onClick={() => applyPreset(p.id)}
+                {LAYOUT_PRESETS.map((preset) => (
+                  <button key={preset.id} type="button" onClick={() => applyPreset(preset.id)}
                     className="flex flex-col items-start gap-0.5 rounded-lg border border-border bg-background p-3 text-left hover:bg-accent hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    <span className="text-sm font-medium">{p.name}</span>
-                    <span className="text-xs text-muted-foreground leading-tight">{p.description}</span>
+                    <span className="text-sm font-medium">{preset.name}</span>
+                    <span className="text-xs text-muted-foreground leading-tight">{preset.description}</span>
                   </button>
-                ))}
-              </div>
-            </section>
-
-            <Separator />
-
-            {/* ── Grid size ── */}
-            <section className="space-y-2">
-              <h3 className="text-sm font-medium">Grid size</h3>
-              <div className="flex gap-3">
-                {(['cols', 'rows'] as const).map((k) => (
-                  <div key={k} className="flex flex-1 flex-col gap-1">
-                    <Label className="text-xs capitalize">{k}</Label>
-                    <Input type="number" min={1} max={8} value={settings.grid[k]}
-                      onChange={(e) => patchGrid({ [k]: Math.max(1, Math.min(8, Number(e.target.value) || 1)) })} />
-                  </div>
                 ))}
               </div>
             </section>
@@ -287,15 +255,12 @@ export function AppSettingsSheet({
             <section className="space-y-2">
               <h3 className="text-sm font-medium">Components</h3>
               <p className="text-xs text-muted-foreground">
-                Dropping a component onto an occupied cell stacks them — hover the component in the canvas to reorder with the ↑↓ arrows.
+                Use the layout button on the main screen to drag blocks. Overlapping order uses the stack controls on each block.
               </p>
 
               <Accordion type="multiple" className="space-y-1">
                 {COMPONENT_IDS.map((id) => {
                   const cfg = settings.components[id];
-                  const occ = occupancyFor(id);
-                  const mates = slotMates(id);
-                  const slotDir = cfg.slot ? (settings.slotDirections[cfg.slot] ?? 'column') : 'column';
 
                   return (
                     <AccordionItem key={id} value={id} className="rounded-lg border border-border/70 px-3">
@@ -303,50 +268,43 @@ export function AppSettingsSheet({
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{COMPONENT_LABELS[id]}</span>
                           <span className={cn('text-[10px] px-1.5 py-0.5 rounded leading-none',
-                            cfg.slot !== null ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
-                            {cfg.slot ?? 'hidden'}
+                            cfg.hidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary')}>
+                            {cfg.hidden ? 'hidden' : `${Math.round(cfg.x)}%, ${Math.round(cfg.y)}%`}
                           </span>
-                          {mates.length > 0 && (
-                            <span className="text-[10px] text-muted-foreground">+{mates.length} shared</span>
-                          )}
                         </div>
                       </AccordionTrigger>
 
                       <AccordionContent className="space-y-4 pb-3">
 
-                        {/* Position */}
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Position</Label>
-                          <GridPositionPicker
-                            value={cfg.slot}
-                            gridCols={settings.grid.cols}
-                            gridRows={settings.grid.rows}
-                            onChange={(slot) => moveComponent(id, slot)}
-                            occupancy={occ}
+                        <Row label="Visible">
+                          <Switch
+                            checked={!cfg.hidden}
+                            onCheckedChange={(v) => updateComponent(id, { hidden: !v })}
                           />
-                        </div>
+                        </Row>
 
-                        {/* Stack direction for this slot (visible when slot is set) */}
-                        {cfg.slot && (
-                          <Row label="Stack direction">
-                            {(['column', 'row'] as const).map((d) => (
-                              <button key={d} type="button"
-                                onClick={() => setSlotDirection(cfg.slot!, d)}
-                                className={cn('rounded border px-2 py-0.5 text-xs capitalize transition-colors',
-                                  slotDir === d
-                                    ? 'border-primary bg-primary/10 text-primary'
-                                    : 'border-border bg-background text-muted-foreground hover:border-primary/50')}>
-                                {d === 'column' ? 'Top → bottom' : 'Left → right'}
-                              </button>
-                            ))}
-                          </Row>
-                        )}
-
-                        {/* Slot-mates info */}
-                        {mates.length > 0 && (
-                          <p className="text-[11px] text-muted-foreground">
-                            Sharing slot with: {mates.map((m) => COMPONENT_LABELS[m]).join(', ')}
-                          </p>
+                        {!cfg.hidden && (
+                          <>
+                            <div className="flex gap-2">
+                              <div className="flex flex-1 flex-col gap-1">
+                                <Label className="text-xs">X (%)</Label>
+                                <Input type="number" min={0} max={100} step={0.5} className="h-7 text-xs"
+                                  value={cfg.x}
+                                  onChange={(e) => updateComponent(id, { x: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })} />
+                              </div>
+                              <div className="flex flex-1 flex-col gap-1">
+                                <Label className="text-xs">Y (%)</Label>
+                                <Input type="number" min={0} max={100} step={0.5} className="h-7 text-xs"
+                                  value={cfg.y}
+                                  onChange={(e) => updateComponent(id, { y: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })} />
+                              </div>
+                            </div>
+                            <Row label="Stack (z-index)">
+                              <Input type="number" className="h-7 w-20 text-xs"
+                                value={cfg.zIndex}
+                                onChange={(e) => updateComponent(id, { zIndex: Math.round(Number(e.target.value) || 0) })} />
+                            </Row>
+                          </>
                         )}
 
                         <Separator className="my-1" />
@@ -467,7 +425,7 @@ export function AppSettingsSheet({
               <h3 className="text-sm font-medium">Clock display mode</h3>
               <div className="space-y-1">
                 <Label className="text-xs">Mode</Label>
-                <Select value={settings.heroModeKind} onValueChange={(v) => patch('heroModeKind', v as AppSettings['heroModeKind'])}>
+                <Select value={settings.heroModeKind} onValueChange={(v) => patchSetting('heroModeKind', v as AppSettings['heroModeKind'])}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {HERO_MODE_KINDS.map((k) => <SelectItem key={k} value={k}>{HERO_MODE_LABELS[k]}</SelectItem>)}
@@ -478,7 +436,7 @@ export function AppSettingsSheet({
                 <>
                   <div className="space-y-1">
                     <Label className="text-xs">Format</Label>
-                    <Select value={settings.digitalFormat} onValueChange={(v) => patch('digitalFormat', v as '12h' | '24h')}>
+                    <Select value={settings.digitalFormat} onValueChange={(v) => patchSetting('digitalFormat', v as '12h' | '24h')}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="24h">24-hour</SelectItem>
@@ -488,7 +446,7 @@ export function AppSettingsSheet({
                   </div>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="secs" className="text-xs">Show seconds</Label>
-                    <Switch id="secs" checked={settings.digitalShowSeconds} onCheckedChange={(v) => patch('digitalShowSeconds', v)} />
+                    <Switch id="secs" checked={settings.digitalShowSeconds} onCheckedChange={(v) => patchSetting('digitalShowSeconds', v)} />
                   </div>
                 </>
               )}
@@ -503,7 +461,7 @@ export function AppSettingsSheet({
               )}
               <div className="flex items-center justify-between">
                 <Label htmlFor="dateunder" className="text-xs">Show date below clock</Label>
-                <Switch id="dateunder" checked={settings.showDateUnderHero} onCheckedChange={(v) => patch('showDateUnderHero', v)} />
+                <Switch id="dateunder" checked={settings.showDateUnderHero} onCheckedChange={(v) => patchSetting('showDateUnderHero', v)} />
               </div>
             </section>
 
@@ -515,7 +473,7 @@ export function AppSettingsSheet({
               <p className="text-xs text-muted-foreground">Leave blank for defaults.</p>
               <div className="grid gap-2">
                 {[
-                  { key: 'study'              as const, label: 'Study',             placeholder: 'Study' },
+                  { key: 'focus'              as const, label: 'Focus',             placeholder: 'Focus' },
                   { key: 'break'              as const, label: 'Break',             placeholder: 'Break' },
                   { key: 'sessions'           as const, label: 'Sessions',          placeholder: 'Sessions' },
                   { key: 'timerTitleOverride' as const, label: 'Timer title',       placeholder: 'Auto (session context)' },
