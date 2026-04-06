@@ -5,11 +5,9 @@ import {
   useCallback,
   useRef,
   useEffect,
-  useMemo,
 } from 'react';
 import { type ComponentId, type ComponentConfig, COMPONENT_IDS, LAYOUT_XY_CLAMP } from '@/lib/app-settings';
 import { cn } from '@/lib/utils';
-import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 
 export type ComponentEntry = {
   id: ComponentId;
@@ -29,7 +27,6 @@ type Props = {
   entries: Record<ComponentId, ComponentEntry>;
   layoutEditMode: boolean;
   onPositionChange: (id: ComponentId, x: number, y: number) => void;
-  onStackAdjust: (id: ComponentId, direction: 'forward' | 'backward') => void;
 };
 
 export function LayoutCanvas({
@@ -37,7 +34,6 @@ export function LayoutCanvas({
   entries,
   layoutEditMode,
   onPositionChange,
-  onStackAdjust,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<{ id: ComponentId; x: number; y: number } | null>(null);
@@ -54,19 +50,6 @@ export function LayoutCanvas({
     x: Math.min(LAYOUT_XY_CLAMP.max, Math.max(LAYOUT_XY_CLAMP.min, x)),
     y: Math.min(LAYOUT_XY_CLAMP.max, Math.max(LAYOUT_XY_CLAMP.min, y)),
   }), []);
-
-  const visibleSorted = useMemo(
-    () =>
-      (COMPONENT_IDS as readonly ComponentId[])
-        .filter((id) => !components[id].hidden)
-        .sort((a, b) => components[a].zIndex - components[b].zIndex),
-    [components]
-  );
-
-  const stackIndex = useCallback(
-    (id: ComponentId) => visibleSorted.indexOf(id),
-    [visibleSorted]
-  );
 
   const onPointerMove = useCallback(
     (e: PointerEvent) => {
@@ -109,7 +92,7 @@ export function LayoutCanvas({
       e.stopPropagation();
       const cfg = components[id];
       const { x: px, y: py } = clampPct(cfg.x, cfg.y);
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       const initial = { id, x: px, y: py };
       previewRef.current = initial;
       setDrag({
@@ -134,7 +117,7 @@ export function LayoutCanvas({
     >
       {layoutEditMode && (
         <div className="pointer-events-none absolute left-3 top-14 z-[4] rounded-md bg-background/80 px-2 py-1 text-[11px] text-muted-foreground shadow-sm">
-          Edit layout — drag the handle on each block
+          Edit layout — drag blocks to reposition
         </div>
       )}
 
@@ -148,9 +131,6 @@ export function LayoutCanvas({
         const pos =
           preview?.id === id ? preview : { x: cfg.x, y: cfg.y };
         const align = entry.align ?? 'center';
-        const si = stackIndex(id);
-        const canSendBack = si > 0;
-        const canBringFwd = si >= 0 && si < visibleSorted.length - 1;
 
         return (
           <div
@@ -164,45 +144,10 @@ export function LayoutCanvas({
             }}
           >
             <div
-              className="relative flex flex-col"
+              className={cn('relative flex flex-col', layoutEditMode && 'cursor-grab touch-manipulation active:cursor-grabbing')}
               style={entry.wrapperStyle}
+              onPointerDown={layoutEditMode ? (e) => startDrag(e, id) : undefined}
             >
-              {layoutEditMode && (
-                <div className="mb-1 flex items-center justify-center gap-1">
-                  <button
-                    type="button"
-                    aria-label="Drag to move"
-                    className="cursor-grab touch-manipulation rounded border border-border/80 bg-background/90 p-1.5 shadow-sm active:cursor-grabbing"
-                    onPointerDown={(e) => startDrag(e, id)}
-                  >
-                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Send backward"
-                    disabled={!canSendBack}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onStackAdjust(id, 'backward');
-                    }}
-                    className="rounded border border-border/80 bg-background/90 p-1 shadow-sm disabled:opacity-30"
-                  >
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Bring forward"
-                    disabled={!canBringFwd}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onStackAdjust(id, 'forward');
-                    }}
-                    className="rounded border border-border/80 bg-background/90 p-1 shadow-sm disabled:opacity-30"
-                  >
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
               {entry.node}
             </div>
           </div>

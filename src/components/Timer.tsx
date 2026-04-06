@@ -19,7 +19,7 @@ const AUDIO_ALERT_DURATION = 8;
 export function Timer() {
   const {
     settings, setSettings,
-    setComponentPosition, adjustStackOrder, updateComponent,
+    setComponentPosition, updateComponent,
     resetToDefaults, hydrated,
   } = useAppSettings();
   const { setTheme } = useTheme();
@@ -227,7 +227,6 @@ export function Timer() {
           entries={allEntries}
           layoutEditMode={layoutEditMode}
           onPositionChange={setComponentPosition}
-          onStackAdjust={adjustStackOrder}
         />
       </div>
     </div>

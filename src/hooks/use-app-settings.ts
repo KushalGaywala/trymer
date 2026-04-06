@@ -3,7 +3,6 @@ import {
   type AppSettings,
   type ComponentId,
   type ComponentConfig,
-  COMPONENT_IDS,
   STORAGE_KEY,
   defaultAppSettings,
   mergeWithDefaults,
@@ -73,33 +72,6 @@ export function useAppSettings() {
     [setSettings]
   );
 
-  /** Swap z-order with the next component above or below in stack order (visible only). */
-  const adjustStackOrder = useCallback(
-    (id: ComponentId, direction: 'forward' | 'backward') => {
-      setSettings((prev) => {
-        const visible = (COMPONENT_IDS as readonly ComponentId[]).filter(
-          (cid) => !prev.components[cid].hidden
-        );
-        const sorted = [...visible].sort(
-          (a, b) => prev.components[a].zIndex - prev.components[b].zIndex
-        );
-        const idx = sorted.indexOf(id);
-        if (idx < 0) return prev;
-        const swapIdx = direction === 'forward' ? idx + 1 : idx - 1;
-        if (swapIdx < 0 || swapIdx >= sorted.length) return prev;
-
-        const other = sorted[swapIdx];
-        const updated = { ...prev.components };
-        const za = updated[id].zIndex;
-        const zb = updated[other].zIndex;
-        updated[id] = { ...updated[id], zIndex: zb };
-        updated[other] = { ...updated[other], zIndex: za };
-        return { ...prev, components: updated };
-      });
-    },
-    [setSettings]
-  );
-
   /** Update any style/config field of a component. */
   const updateComponent = useCallback(
     (id: ComponentId, patch: Partial<ComponentConfig>) => {
@@ -118,11 +90,10 @@ export function useAppSettings() {
       settings,
       setSettings,
       setComponentPosition,
-      adjustStackOrder,
       updateComponent,
       resetToDefaults,
       hydrated,
     }),
-    [settings, setSettings, setComponentPosition, adjustStackOrder, updateComponent, resetToDefaults, hydrated]
+    [settings, setSettings, setComponentPosition, updateComponent, resetToDefaults, hydrated]
   );
 }

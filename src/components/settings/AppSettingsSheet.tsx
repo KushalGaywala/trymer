@@ -255,7 +255,7 @@ export function AppSettingsSheet({
             <section className="space-y-2">
               <h3 className="text-sm font-medium">Components</h3>
               <p className="text-xs text-muted-foreground">
-                Use the layout button on the main screen to drag blocks. Overlapping order uses the stack controls on each block.
+                Use the layout button on the main screen to drag blocks. Adjust z-index per component below when blocks overlap.
               </p>
 
               <Accordion type="multiple" className="space-y-1">
